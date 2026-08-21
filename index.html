@@ -51,8 +51,8 @@
         .candidate-step-dot.is-active { background: var(--tech-navy); color: white; border-color: var(--tech-navy); transform: scale(1.05); }
         .candidate-step-dot.is-complete { background: #dff5f5; color: #0a7274; border-color: #b9e7e8; }
 
-        /* 後台：手機維持底部導覽，桌面改為固定側邊欄 */
-        @media (min-width: 1024px) {
+        /* 後台：手機維持底部導覽，平板以上與桌面改為固定側邊欄 */
+        @media (min-width: 768px) {
             #app-staff > header { margin-left: 240px; padding: 20px 32px; }
             #app-staff > main { margin-left: 240px; padding: 32px; padding-bottom: 48px; overflow: visible; }
             #app-staff > main > div { max-width: 1240px; margin-left: auto; margin-right: auto; }
@@ -96,7 +96,7 @@
         #app-staff .rounded-3xl { border-radius: 18px !important; }
         #app-staff .rounded-2xl { border-radius: 14px !important; }
         #app-staff > nav { border-color: var(--tech-line) !important; }
-        @media (max-width: 1023px) {
+        @media (max-width: 767px) {
             #app-staff > nav { background: rgba(255,255,255,.97) !important; }
             #app-staff > nav button { color: #6b7f95 !important; }
             #app-staff > nav button.tab-active { color: var(--tech-teal) !important; background: transparent !important; }
