@@ -763,6 +763,10 @@
                     <a id="mPhoneLink" href="#" class="bg-slate-50 p-4 rounded-2xl block active:scale-95 transition-transform border border-slate-100"><span class="text-[9px] font-black text-slate-400 uppercase block mb-1">手機撥號</span><p id="mPhone" class="text-sm font-black text-slate-900 italic">--</p></a>
                     <button onclick="openMap()" class="bg-slate-50 p-4 rounded-2xl text-left active:scale-95 transition-transform border border-slate-100"><span class="text-[9px] font-black text-slate-400 uppercase block mb-1">地址導航</span><p id="mDistrictLabel" class="text-sm font-black text-slate-900 italic break-words line-clamp-1">--</p></button>
                 </div>
+                <div class="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <div class="flex items-center gap-2 mb-3"><i data-lucide="map-pinned" class="w-4 h-4 text-indigo-500"></i><p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">未結案案場路線</p></div>
+                    <div id="mJobMapSites" class="space-y-2 text-xs text-slate-400">載入案場中...</div>
+                </div>
             </div>
 
             <!-- 評估與面試結果 (核心) -->
@@ -1242,6 +1246,7 @@
         var currentPage = 1; 
         var pageSize = 20; 
         var currentFullAddr = ""; 
+        var openJobMapSites = [];
         var isSubmitting = false;
         var currentStatTab = 'interview'; 
         var currentCandidateStep = 1;
@@ -2864,11 +2869,46 @@
             }).apiDeleteCandidatePhoto(authToken, rowId);
         }
         
+        function renderOpenJobMapSites() {
+            var box = document.getElementById('mJobMapSites');
+            if (!box) return;
+            if (!currentFullAddr) { box.innerHTML = '<p class="text-xs font-bold text-amber-600">求職者地址未完整填寫，無法規劃路線。</p>'; return; }
+            if (!openJobMapSites.length) { box.innerHTML = '<p class="text-xs font-bold text-slate-400">目前沒有未結案案場。</p>'; return; }
+            box.innerHTML = openJobMapSites.map(function(site, index) {
+                var hasLocation = !!String(site.location || '').trim();
+                return '<div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800 truncate">' + escapeHtml(site.community || '未命名案場') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1 truncate">' + escapeHtml(site.position || '未填職位') + '・' + escapeHtml(site.location || '案場地址未完整設定') + '</p></div>' + (hasLocation ? '<button type="button" onclick="openJobRoute(' + index + ')" class="shrink-0 text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg">規劃路線</button>' : '<span class="shrink-0 text-[10px] font-bold text-slate-300">無地址</span>') + '</div>';
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function loadOpenJobMapSites() {
+            var box = document.getElementById('mJobMapSites');
+            if (box) box.innerHTML = '<p class="text-xs font-bold text-slate-400">載入案場中...</p>';
+            google.script.run.withSuccessHandler(function(res) {
+                var result;
+                try { result = JSON.parse(res); } catch (e) { result = []; }
+                if (!Array.isArray(result)) { if (result && String(result.message || '').indexOf('登入') > -1) handleSessionExpired(result.message); openJobMapSites = []; }
+                else { openJobMapSites = result; }
+                renderOpenJobMapSites();
+            }).withFailureHandler(function() {
+                openJobMapSites = [];
+                if (box) box.innerHTML = '<p class="text-xs font-bold text-rose-500">案場資料載入失敗，請稍後再試。</p>';
+            }).apiGetOpenJobMapSites(authToken);
+        }
+
+        function openJobRoute(index) {
+            var site = openJobMapSites[index];
+            if (!site || !currentFullAddr || !site.location) return;
+            var url = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(currentFullAddr) + '&destination=' + encodeURIComponent(site.location);
+            window.open(url, '_blank', 'noopener');
+        }
+
         function openModal(rowId) { 
             var t = db.find(function(x) { return x.rowId === rowId; }); 
             if (!t) return;
 
             currentFullAddr = t["通訊地址"] || ""; 
+            loadOpenJobMapSites();
             document.getElementById('mRowId').value = t.rowId; 
             document.getElementById('mName').innerText = t["姓名"] || "未填寫"; 
             loadCandidatePhoto(t.rowId, t["姓名"] || "未填寫");
@@ -3305,12 +3345,17 @@
                     var permHtml = permLabels.length > 0 ?
                         permLabels.map(function(l) { return '<span class="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">' + escapeHtml(l) + '</span>'; }).join(' ') :
                         '<span class="text-[9px] font-bold text-slate-300">尚未指派任何功能</span>';
-                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + escapeHtml(a.email) + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div><p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p><div class="flex gap-4 mt-3 text-xs font-black">' + actions + '<button onclick="resetAccountPassword(\'' + escapeHtml(a.email) + '\')" class="text-slate-400">重設密碼</button></div></div>';
+                    var lockUntil = a.lockUntil ? new Date(a.lockUntil) : null;
+                    var isLocked = lockUntil && !isNaN(lockUntil.getTime()) && lockUntil.getTime() > Date.now();
+                    var lockHtml = isLocked ? '<p class="text-[10px] font-black text-rose-500 mt-2">暫時鎖定至 ' + escapeHtml(lockUntil.toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' })) + '</p>' : (Number(a.failedLoginCount || 0) ? '<p class="text-[10px] font-bold text-amber-600 mt-2">連續登入失敗 ' + escapeHtml(a.failedLoginCount) + ' 次</p>' : '');
+                    var unlockAction = isLocked ? '<button onclick="unlockAccount(\'' + escapeHtml(a.email) + '\')" class="text-rose-500">解除鎖定</button>' : '';
+                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + escapeHtml(a.email) + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div><p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p>' + lockHtml + '<div class="flex flex-wrap gap-4 mt-3 text-xs font-black">' + actions + '<button onclick="resetAccountPassword(\'' + escapeHtml(a.email) + '\')" class="text-slate-400">重設密碼</button>' + unlockAction + '</div></div>';
                 }).join('') || '<p class="text-center text-slate-300 py-10">尚無帳號申請</p>';
             }).apiGetAccounts(authToken);
         }
         function updateAccount(email, status) { google.script.run.withSuccessHandler(function(res) { var result = JSON.parse(res); if (result.status === 'success') fetchAccounts(); else alert(result.message); }).apiUpdateAccount(authToken, { email: email, status: status }); }
         function resetAccountPassword(email) { var password = prompt('請輸入新密碼（至少 10 字元）：'); if (!password) return; google.script.run.withSuccessHandler(function(res) { var result = JSON.parse(res); alert(result.status === 'success' ? '密碼已重設' : result.message); }).apiUpdateAccount(authToken, { email: email, status: '已核准', newPassword: password }); }
+        function unlockAccount(email) { if (!confirm('確定要解除「' + email + '」的登入鎖定嗎？')) return; google.script.run.withSuccessHandler(function(res) { var result = JSON.parse(res); if (result.status === 'success') { fetchAccounts(); } else { alert(result.message || '解除鎖定失敗'); } }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiUnlockAccount(authToken, email); }
 
         // --- 新增／編輯帳號 Modal ---
         function renderPermissionCheckboxes(selectedKeys) {
