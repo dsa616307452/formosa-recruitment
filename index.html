@@ -718,7 +718,7 @@
             <div>
                 <div class="flex items-start gap-4">
                     <div class="relative shrink-0">
-                        <div id="mPhotoFrame" class="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 text-white flex items-center justify-center border-2 border-slate-100 shadow-sm">
+                        <div id="mPhotoFrame" onclick="openCandidatePhotoViewer()" title="點擊查看照片" class="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 text-white flex items-center justify-center border-2 border-slate-100 shadow-sm cursor-pointer">
                             <img id="mPhotoImage" class="hidden w-full h-full object-cover" alt="應徵者照片">
                             <span id="mPhotoInitials" class="text-xl font-black tracking-tight">--</span>
                         </div>
@@ -961,6 +961,17 @@
             <div class="col-span-2"><label class="form-label">備註 Note</label><textarea id="jNote" rows="2" class="form-input" placeholder="例如: 需做財報、特殊班表..."></textarea></div>
         </form>
         <div class="p-6 border-t border-slate-50"><button onclick="document.getElementById('jobForm').requestSubmit()" id="btnSubmitJob" class="w-full btn-primary text-white rounded-2xl py-5 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 active:scale-95 transition-transform"><i data-lucide="send" class="w-5 h-5"></i> 發布職缺需求</button></div>
+    </div>
+
+    <div id="candidatePhotoViewer" class="hidden fixed inset-0 z-[200] bg-slate-950/90 p-5 flex items-center justify-center" onclick="closeCandidatePhotoViewer()">
+        <div class="w-full max-w-2xl max-h-full flex flex-col items-center gap-4" onclick="event.stopPropagation()">
+            <div class="w-full flex items-center justify-between text-white">
+                <p id="candidatePhotoViewerTitle" class="font-black">應徵者照片</p>
+                <button type="button" onclick="closeCandidatePhotoViewer()" title="關閉" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <img id="candidatePhotoViewerImage" class="max-w-full max-h-[70vh] object-contain rounded-2xl shadow-2xl" alt="應徵者照片預覽">
+            <a id="candidatePhotoDownload" href="#" download class="inline-flex items-center gap-2 bg-white text-slate-900 px-5 py-3 rounded-xl font-black text-sm hover:bg-slate-100 active:scale-95"><i data-lucide="download" class="w-4 h-4"></i> 下載照片</a>
+        </div>
     </div>
 
     <script>
@@ -2713,6 +2724,26 @@
             return true;
         }
 
+        function openCandidatePhotoViewer() {
+            var image = document.getElementById('mPhotoImage');
+            if (image.classList.contains('hidden') || !image.src) return;
+            var name = String(document.getElementById('mName').innerText || '應徵者').replace(/[\\/:*?"<>|]/g, '_');
+            var mimeType = (image.src.match(/^data:([^;,]+)/) || [])[1] || 'image/jpeg';
+            var extension = mimeType === 'image/png' ? 'png' : (mimeType === 'image/webp' ? 'webp' : 'jpg');
+            document.getElementById('candidatePhotoViewerTitle').textContent = name + '｜面試照片';
+            document.getElementById('candidatePhotoViewerImage').src = image.src;
+            document.getElementById('candidatePhotoDownload').href = image.src;
+            document.getElementById('candidatePhotoDownload').download = name + '_面試照片.' + extension;
+            document.getElementById('candidatePhotoViewer').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeCandidatePhotoViewer() {
+            var viewer = document.getElementById('candidatePhotoViewer');
+            viewer.classList.add('hidden');
+            document.getElementById('candidatePhotoViewerImage').removeAttribute('src');
+        }
+
         function loadCandidatePhoto(rowId, name) {
             setCandidatePhotoFallback(name);
             if (!rowId || !authToken) return;
@@ -3024,6 +3055,7 @@
         }
 
         function closeModal() {
+            closeCandidatePhotoViewer();
             document.getElementById('modal').classList.remove('modal-active');
             document.getElementById('mPhotoInput').value = '';
             setCandidatePhotoFallback('');
