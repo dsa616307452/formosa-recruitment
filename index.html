@@ -170,6 +170,7 @@
         </div>
 
         <form id="candidateForm" class="flex-1 overflow-y-auto px-6 py-8 space-y-8 max-w-3xl w-full mx-auto">
+            <p class="text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-2xl px-4 py-3">本表單所有欄位皆為必填；沒有相關資料或經驗時，請填寫「無」或選擇「無／不適用」。</p>
             <!-- 區塊一：基本資料與條件 -->
             <div data-candidate-step="1" class="candidate-step-section step-active bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
                 <label class="text-sm font-[1000] text-slate-900 italic block mb-2 flex items-center gap-2"><i data-lucide="user" class="w-4 h-4 text-indigo-500"></i> 基本資料</label>
@@ -202,8 +203,8 @@
                 </div>
                 <div>
                     <label class="form-label">特殊身分別 (可複選)</label>
-                    <div class="flex flex-wrap gap-2">
-                        <label class="cb-label"><input type="checkbox" name="cIdentity" value="無特殊身分別">無</label>
+                    <div class="flex flex-wrap gap-2" data-required-group="cIdentity">
+                        <label class="cb-label"><input type="checkbox" name="cIdentity" value="無／不適用" data-none-option>無／不適用</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="中低收入戶">中低收入戶</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="原住民">原住民</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="身障">身障</label>
@@ -272,7 +273,8 @@
                 </div>
                 <div>
                     <label class="form-label">加保狀態 (可複選)</label>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap gap-2" data-required-group="cInsurance">
+                        <label class="cb-label"><input type="checkbox" name="cInsurance" value="無／不適用" data-none-option>無／不適用</label>
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="正常加保">正常加保</label>
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="已領勞退/公保">已領勞退/公保</label>
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="有眷屬一同加保">有眷屬一同加保</label>
@@ -340,8 +342,8 @@
                     </div>
                     <div>
                         <label class="text-[9px] font-bold text-slate-500 block mb-1 mt-2">區分所有權人會議 (可複選)</label>
-                        <div class="flex flex-wrap gap-1.5">
-                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="無經驗">無經驗</label>
+                        <div class="flex flex-wrap gap-1.5" data-required-group="cSkillOwner">
+                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="無／不適用" data-none-option>無／不適用</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="曾擔任支援人力">曾擔任支援人力</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="資料整備">資料整備</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="可獨立籌備整場會議">可獨立籌備</label>
@@ -352,7 +354,8 @@
 
                 <div>
                     <label class="form-label">社區櫃台系統操作 (可複選)</label>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex flex-wrap gap-2" data-required-group="cSkillSystem">
+                        <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="無／不適用" data-none-option>無／不適用</label>
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="今網智生活">今網智生活</label>
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="homego">homego</label>
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="新都興">新都興</label>
@@ -370,7 +373,8 @@
                     <p class="text-[10px] font-black text-slate-400 mb-2">語言能力 (可複選)</p>
                     <div>
                         <span class="text-[9px] font-bold text-slate-500 inline-block w-8">台語:</span>
-                        <div class="inline-flex flex-wrap gap-1.5 ml-2">
+                        <div class="inline-flex flex-wrap gap-1.5 ml-2" data-required-group="cLangTW">
+                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="無／不適用" data-none-option>無／不適用</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="聽">聽</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="說">說</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="讀">讀</label>
@@ -380,7 +384,8 @@
                     </div>
                     <div>
                         <span class="text-[9px] font-bold text-slate-500 inline-block w-8">英語:</span>
-                        <div class="inline-flex flex-wrap gap-1.5 ml-2">
+                        <div class="inline-flex flex-wrap gap-1.5 ml-2" data-required-group="cLangEN">
+                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="無／不適用" data-none-option>無／不適用</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="聽">聽</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="說">說</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="讀">讀</label>
@@ -1194,6 +1199,13 @@
         var currentCandidateStep = 1;
         var currentStaffTab = 'today';
         var CANDIDATE_STEP_LABELS = ['基本與聯絡', '應徵條件與經歷', '背景與能力', '確認並送出'];
+        var CANDIDATE_REQUIRED_FIELDS = {
+            1: ['cName', 'cIdNumber', 'cGender', 'cBirthday', 'cAge', 'cHeight', 'cWeight', 'cBloodType', 'cBirthplace', 'cPhone', 'cHomePhone', 'addrCity', 'addrDist', 'addrDetail', 'cFamilyStatus', 'cChildren', 'cEmgName', 'cEmgRelation', 'cEmgPhone', 'cEmgAddress'],
+            2: ['cPos', 'cExpectedSalary', 'cShift', 'cAvailDate', 'cCommute', 'cWorkedBefore', 'cSource', 'cReferrer', 'cSchool', 'cEduStatus', 'cMajor', 'cExp1Co', 'cExp1Title', 'cExp1Time', 'cExp1Salary', 'cExp1Leave', 'cExp2Co', 'cExp2Title', 'cExp2Time', 'cExp2Salary', 'cExp2Leave', 'cServedSites', 'cMilitary', 'cMilitaryBranch'],
+            3: ['cHealth', 'cDisability', 'cCriminal', 'cPassport', 'cCert', 'cSkillFinance', 'cSkillMeeting', 'cSkillOrg', 'cSkillWord', 'cSkillExcel', 'cSkillPPT', 'cLangOther', 'cSkill'],
+            4: ['cConsent']
+        };
+        var CANDIDATE_REQUIRED_SELECTS = ['cGender', 'cBloodType', 'cPos', 'cShift', 'cWorkedBefore', 'cSource', 'cEduStatus', 'cDisability', 'cCriminal', 'cPassport', 'cSkillFinance', 'cSkillMeeting', 'cSkillOrg', 'cSkillWord', 'cSkillExcel', 'cSkillPPT'];
         var draftSaveTimer = null;
 
         var trainingChartInstance = null;
@@ -1202,8 +1214,64 @@
         window.onload = function() { 
             lucide.createIcons(); 
             initAddressSelectors();
+            prepareCandidateRequiredFields();
             setupFormAutoSave();
         };
+
+        function prepareCandidateRequiredFields() {
+            Object.keys(CANDIDATE_REQUIRED_FIELDS).forEach(function(step) {
+                CANDIDATE_REQUIRED_FIELDS[step].forEach(function(id) {
+                    var field = document.getElementById(id);
+                    if (field) field.required = true;
+                });
+            });
+            CANDIDATE_REQUIRED_SELECTS.forEach(function(id) {
+                var select = document.getElementById(id);
+                if (!select || select.dataset.requiredPrepared === 'true') return;
+                if (!select.options.length || select.options[0].value !== '') {
+                    var placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = '請選擇...';
+                    placeholder.disabled = true;
+                    select.insertBefore(placeholder, select.firstChild);
+                    select.value = '';
+                }
+                select.dataset.requiredPrepared = 'true';
+            });
+            document.querySelectorAll('[data-required-group]').forEach(function(group) {
+                group.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
+                    input.addEventListener('change', function() { handleRequiredChoice(input); });
+                });
+            });
+        }
+
+        function handleRequiredChoice(changedInput) {
+            var group = changedInput.closest('[data-required-group]');
+            if (!group) return;
+            var inputs = group.querySelectorAll('input[type="checkbox"]');
+            if (changedInput.hasAttribute('data-none-option') && changedInput.checked) {
+                inputs.forEach(function(input) { if (input !== changedInput) input.checked = false; });
+            } else if (changedInput.checked) {
+                inputs.forEach(function(input) { if (input.hasAttribute('data-none-option')) input.checked = false; });
+            }
+        }
+
+        function validateCandidateRequiredGroups(step) {
+            var sections = document.querySelectorAll('[data-candidate-step="' + step + '"]');
+            for (var i = 0; i < sections.length; i++) {
+                var groups = sections[i].querySelectorAll('[data-required-group]');
+                for (var j = 0; j < groups.length; j++) {
+                    var inputs = groups[j].querySelectorAll('input[type="checkbox"]');
+                    var checked = groups[j].querySelector('input[type="checkbox"]:checked');
+                    if (!checked && inputs.length) {
+                        alert('請至少選擇一項，沒有相關資料時請選「無／不適用」');
+                        inputs[0].focus();
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
 
         // --- 台灣身分證字號檢核碼演算法 ---
         function validateTWID(id) {
@@ -1475,6 +1543,7 @@
         }
 
         function validateCandidateStep(step) {
+            prepareCandidateRequiredFields();
             var sections = document.querySelectorAll('[data-candidate-step="' + step + '"]');
             for (var i = 0; i < sections.length; i++) {
                 var requiredFields = sections[i].querySelectorAll('[required]');
@@ -1486,6 +1555,7 @@
                     }
                 }
             }
+            if (!validateCandidateRequiredGroups(step)) return false;
             if (step === 1) {
                 var phone = document.getElementById('cPhone');
                 var idNumber = document.getElementById('cIdNumber');
@@ -1531,6 +1601,7 @@
             document.getElementById('view-landing').classList.add('hidden'); 
             document.getElementById('app-candidate').classList.remove('hidden'); 
             initAddressSelectors();
+            prepareCandidateRequiredFields();
             checkDraftExists();
             setCandidateStep(1);
             lucide.createIcons(); 
@@ -1945,6 +2016,13 @@
         function submitCandidate(e) { 
             if (e) e.preventDefault(); 
             if (isSubmitting) return;
+
+            prepareCandidateRequiredFields();
+            for (var validationStep = 1; validationStep <= 4; validationStep++) {
+                setCandidateStep(validationStep);
+                if (!validateCandidateStep(validationStep)) return;
+            }
+            setCandidateStep(4);
 
             var form = document.getElementById('candidateForm');
             var city = document.getElementById('addrCity').value;
