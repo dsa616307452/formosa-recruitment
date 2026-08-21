@@ -716,8 +716,23 @@
         
         <div class="flex-1 overflow-y-auto px-6 py-8 space-y-6">
             <div>
-                <h3 id="mName" class="text-4xl font-[1000] italic text-slate-900 leading-none">姓名</h3>
-                <div class="flex gap-2 items-center mt-2"><input id="mPos" type="text" placeholder="應徵職位" class="text-slate-400 font-bold text-xs uppercase tracking-widest bg-transparent border-b border-dashed border-slate-300 focus:border-indigo-400 outline-none px-0 py-0.5 w-32"><span class="text-slate-300">|</span><p id="mAgeDisplay" class="text-slate-900 font-black text-xs uppercase tracking-widest">-- 歲</p></div>
+                <div class="flex items-start gap-4">
+                    <div class="relative shrink-0">
+                        <div id="mPhotoFrame" class="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 text-white flex items-center justify-center border-2 border-slate-100 shadow-sm">
+                            <img id="mPhotoImage" class="hidden w-full h-full object-cover" alt="應徵者照片">
+                            <span id="mPhotoInitials" class="text-xl font-black tracking-tight">--</span>
+                        </div>
+                        <label for="mPhotoInput" title="上傳或替換照片" class="absolute -right-2 -bottom-2 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center border-2 border-white shadow-md cursor-pointer hover:bg-indigo-700 active:scale-95">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                        </label>
+                        <input id="mPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleCandidatePhotoInput(this)">
+                        <button id="mPhotoDeleteBtn" type="button" onclick="deleteCandidatePhoto()" title="刪除照片" class="hidden absolute -left-2 -bottom-2 w-8 h-8 rounded-full bg-white text-rose-500 flex items-center justify-center border border-slate-200 shadow-md hover:bg-rose-50 active:scale-95"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                    <div class="min-w-0 pt-1">
+                        <h3 id="mName" class="text-4xl font-[1000] italic text-slate-900 leading-none">姓名</h3>
+                        <div class="flex gap-2 items-center mt-2"><input id="mPos" type="text" placeholder="應徵職位" class="text-slate-400 font-bold text-xs uppercase tracking-widest bg-transparent border-b border-dashed border-slate-300 focus:border-indigo-400 outline-none px-0 py-0.5 w-32"><span class="text-slate-300">|</span><p id="mAgeDisplay" class="text-slate-900 font-black text-xs uppercase tracking-widest">-- 歲</p></div>
+                    </div>
+                </div>
 
                 <div id="mBlacklistBox" class="hidden mt-4 bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2">
                     <div class="flex items-center gap-2">
@@ -2678,6 +2693,76 @@
         }
         
         function openMap() { if(currentFullAddr) window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(currentFullAddr), '_blank'); }
+
+        function setCandidatePhotoFallback(name) {
+            var initials = String(name || '').trim().replace(/\s+/g, '').slice(-2) || '--';
+            document.getElementById('mPhotoInitials').textContent = initials;
+            document.getElementById('mPhotoImage').removeAttribute('src');
+            document.getElementById('mPhotoImage').classList.add('hidden');
+            document.getElementById('mPhotoInitials').classList.remove('hidden');
+            document.getElementById('mPhotoDeleteBtn').classList.add('hidden');
+        }
+
+        function showCandidatePhoto(photo) {
+            if (!photo || !photo.base64 || !photo.mimeType) return false;
+            var image = document.getElementById('mPhotoImage');
+            image.src = 'data:' + photo.mimeType + ';base64,' + photo.base64;
+            image.classList.remove('hidden');
+            document.getElementById('mPhotoInitials').classList.add('hidden');
+            document.getElementById('mPhotoDeleteBtn').classList.remove('hidden');
+            return true;
+        }
+
+        function loadCandidatePhoto(rowId, name) {
+            setCandidatePhotoFallback(name);
+            if (!rowId || !authToken) return;
+            google.script.run.withSuccessHandler(function(response) {
+                if (String(document.getElementById('mRowId').value) !== String(rowId)) return;
+                var result = typeof response === 'string' ? JSON.parse(response) : response;
+                if (!result || result.status !== 'success') return;
+                showCandidatePhoto(result.photo);
+            }).withFailureHandler(function() {
+                // 照片讀取失敗時仍保留姓名縮寫，不中斷查看履歷。
+            }).apiGetCandidatePhoto(authToken, rowId);
+        }
+
+        function handleCandidatePhotoInput(input) {
+            var file = input && input.files && input.files[0];
+            if (!file) return;
+            var allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (allowedTypes.indexOf(file.type) === -1) { alert('僅支援 JPEG、PNG 或 WebP 圖片。'); input.value = ''; return; }
+            if (file.size > 5 * 1024 * 1024) { alert('照片檔案不可超過 5 MB。'); input.value = ''; return; }
+            var rowId = document.getElementById('mRowId').value;
+            if (!rowId) { alert('請先開啟應徵者資料。'); input.value = ''; return; }
+            var reader = new FileReader();
+            reader.onload = function() {
+                var base64 = String(reader.result || '').split(',')[1] || '';
+                if (!base64) { alert('照片讀取失敗，請重新選擇檔案。'); input.value = ''; return; }
+                google.script.run.withSuccessHandler(function(response) {
+                    var result = typeof response === 'string' ? JSON.parse(response) : response;
+                    input.value = '';
+                    if (!result || result.status !== 'success') { alert('照片上傳失敗：' + ((result && result.message) || '未知錯誤')); return; }
+                    loadCandidatePhoto(rowId, document.getElementById('mName').innerText);
+                }).withFailureHandler(function(error) {
+                    input.value = '';
+                    alert('照片上傳失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
+                }).apiUploadCandidatePhoto(authToken, rowId, { mimeType: file.type, base64: base64 });
+            };
+            reader.onerror = function() { input.value = ''; alert('照片讀取失敗，請重新選擇檔案。'); };
+            reader.readAsDataURL(file);
+        }
+
+        function deleteCandidatePhoto() {
+            var rowId = document.getElementById('mRowId').value;
+            if (!rowId || !confirm('確定要刪除這張照片嗎？')) return;
+            google.script.run.withSuccessHandler(function(response) {
+                var result = typeof response === 'string' ? JSON.parse(response) : response;
+                if (!result || result.status !== 'success') { alert('照片刪除失敗：' + ((result && result.message) || '未知錯誤')); return; }
+                setCandidatePhotoFallback(document.getElementById('mName').innerText);
+            }).withFailureHandler(function(error) {
+                alert('照片刪除失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
+            }).apiDeleteCandidatePhoto(authToken, rowId);
+        }
         
         function openModal(rowId) { 
             var t = db.find(function(x) { return x.rowId === rowId; }); 
@@ -2686,6 +2771,7 @@
             currentFullAddr = t["通訊地址"] || ""; 
             document.getElementById('mRowId').value = t.rowId; 
             document.getElementById('mName').innerText = t["姓名"] || "未填寫"; 
+            loadCandidatePhoto(t.rowId, t["姓名"] || "未填寫");
             document.getElementById('mPos').value = t._position || t["應徵職位"] || ""; 
             document.getElementById('mPhone').innerText = t["電話"] || "--"; 
             document.getElementById('mPhoneLink').href = 'tel:' + (t["電話"] || ""); 
@@ -2937,7 +3023,11 @@
             }).apiClearBlacklist(authToken, rowId);
         }
 
-        function closeModal() { document.getElementById('modal').classList.remove('modal-active'); }
+        function closeModal() {
+            document.getElementById('modal').classList.remove('modal-active');
+            document.getElementById('mPhotoInput').value = '';
+            setCandidatePhotoFallback('');
+        }
 
         function refreshCurrentView() {
             if (currentStaffTab === 'jobs') fetchJobs();
