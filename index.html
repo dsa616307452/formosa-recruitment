@@ -11,19 +11,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
-        body { font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif; background: #fdfdfd; color: #0f172a; -webkit-tap-highlight-color: transparent; }
-        .tab-active { color: #0f172a !important; } .tab-active i { transform: translateY(-4px); color: #0f172a !important; }
+        :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); --tech-navy: #0b2545; --tech-navy-light: #123b66; --tech-teal: #0f8b8d; --tech-sky: #eaf3fb; --tech-line: #d7e3f0; }
+        body { font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif; background: #f4f7fb; color: #102a43; -webkit-tap-highlight-color: transparent; }
+        .tab-active { color: var(--tech-teal) !important; } .tab-active i { transform: translateY(-4px); color: var(--tech-teal) !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
         .modal-active { transform: translateY(0%) !important; }
-        .btn-primary { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.3); }
-        .stat-card { background: white; border: 1px solid #f1f5f9; border-radius: 20px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .btn-primary { background: linear-gradient(135deg, var(--tech-navy-light) 0%, var(--tech-navy) 100%); box-shadow: 0 10px 20px -5px rgba(11, 37, 69, 0.28); }
+        .stat-card { background: white; border: 1px solid var(--tech-line); border-radius: 16px; padding: 16px; box-shadow: 0 8px 20px -14px rgba(11, 37, 69, 0.24); }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .form-input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; font-weight: 700; outline: none; transition: all 0.2s; }
-        .form-input:focus { background: #fff; border-color: #0f172a; box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05); }
+        .form-input { width: 100%; background: #f7faff; border: 1px solid var(--tech-line); border-radius: 12px; padding: 16px; font-weight: 700; outline: none; transition: all 0.2s; }
+        .form-input:focus { background: #fff; border-color: var(--tech-teal); box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.10); }
         .form-input.input-error { border-color: #f43f5e !important; background: #fff1f2 !important; }
         .form-input.input-success { border-color: #10b981 !important; background: #f0fdf4 !important; }
         .form-label { font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: block; }
@@ -34,7 +34,7 @@
         .group-btn.open .chevron { transform: rotate(180deg); }
         .cb-label { display: inline-flex; align-items: center; gap: 4px; background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; }
         .cb-label:hover { background: #f8fafc; }
-        .cb-label:has(input:checked) { background: #0f172a; color: white; border-color: #0f172a; }
+        .cb-label:has(input:checked) { background: var(--tech-navy); color: white; border-color: var(--tech-navy); }
         .cb-label input { display: none; }
         select.appearance-none {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 8l5 5 5-5'/%3e%3c/svg%3e") !important;
@@ -48,20 +48,21 @@
         .candidate-step-section { display: none; }
         .candidate-step-section.step-active { display: block; animation: fadeIn 0.3s ease-out; }
         .candidate-step-dot { transition: all 0.25s ease; }
-        .candidate-step-dot.is-active { background: #0f172a; color: white; border-color: #0f172a; transform: scale(1.05); }
-        .candidate-step-dot.is-complete { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
+        .candidate-step-dot.is-active { background: var(--tech-navy); color: white; border-color: var(--tech-navy); transform: scale(1.05); }
+        .candidate-step-dot.is-complete { background: #dff5f5; color: #0a7274; border-color: #b9e7e8; }
 
         /* 後台：手機維持底部導覽，桌面改為固定側邊欄 */
         @media (min-width: 1024px) {
             #app-staff > header { margin-left: 240px; padding: 20px 32px; }
             #app-staff > main { margin-left: 240px; padding: 32px; padding-bottom: 48px; overflow: visible; }
             #app-staff > main > div { max-width: 1240px; margin-left: auto; margin-right: auto; }
-            #app-staff > nav { top: 0; bottom: 0; right: auto; width: 240px; padding: 28px 16px; flex-direction: column; justify-content: flex-start; gap: 8px; border-top: 0; border-right: 1px solid #e2e8f0; background: rgba(255,255,255,.98); }
-            #app-staff > nav::before { content: 'FORMOSA\A 招募管理'; white-space: pre; padding: 4px 12px 22px; font-size: 18px; line-height: 1.2; font-weight: 900; font-style: italic; color: #0f172a; }
+            #app-staff > nav { top: 0; bottom: 0; right: auto; width: 240px; padding: 28px 16px; flex-direction: column; justify-content: flex-start; gap: 8px; border-top: 0; border-right: 1px solid #173b62; background: var(--tech-navy); }
+            #app-staff > nav::before { content: 'FORMOSA\A 招募管理'; white-space: pre; padding: 4px 12px 22px; font-size: 18px; line-height: 1.2; font-weight: 900; font-style: normal; color: white; }
             #app-staff > nav button { flex: none !important; width: 100%; min-height: 48px; padding: 12px 14px; flex-direction: row !important; justify-content: flex-start; gap: 12px !important; border-radius: 14px; }
-            #app-staff > nav button.tab-active { background: #0f172a; color: white !important; }
+            #app-staff > nav button.tab-active { background: rgba(15, 139, 141, .28); color: white !important; }
             #app-staff > nav button.tab-active i { transform: none; color: white !important; }
             #app-staff > nav button span { font-size: 12px; }
+            #app-staff > nav button { color: #b8cbe0 !important; }
             #todayGrid, #jobsList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             #jobsList { display: grid; gap: 16px; }
             #jobsList > * { margin-top: 0 !important; } /* 網格已經用 gap 控制間距，避免 space-y-4 的上邊距讓兩欄卡片對不齊 */
@@ -75,6 +76,31 @@
             #mAdvancedInfo { display: block !important; }
             .form-input { border: 1px solid #cbd5e1 !important; background: transparent !important; }
             .stat-card { border: 1px solid #ccc !important; box-shadow: none !important; }
+        }
+
+        /* 俐落科技感：維持既有版面與功能，只統一後台的色彩、密度與辨識層級 */
+        #view-landing { background: radial-gradient(circle at 20% 15%, #e0f3f6 0, transparent 35%), linear-gradient(145deg, #f7fbff 0%, #eaf2fa 100%) !important; }
+        #view-landing > div:first-child > div { background: linear-gradient(135deg, var(--tech-navy-light), var(--tech-navy)) !important; border-radius: 18px; }
+        #view-landing h1, #app-staff .text-slate-900 { color: #102a43 !important; font-style: normal !important; }
+        #app-staff { background: #f4f7fb !important; }
+        #app-staff > header { background: rgba(255,255,255,.94) !important; border-color: var(--tech-line) !important; }
+        #app-staff .bg-slate-900 { background-color: var(--tech-navy) !important; }
+        #app-staff .bg-slate-800 { background-color: var(--tech-navy-light) !important; }
+        #app-staff .bg-slate-50 { background-color: #f4f8fc !important; }
+        #app-staff .bg-slate-100 { background-color: #eaf1f8 !important; }
+        #app-staff .border-slate-100, #app-staff .border-slate-200 { border-color: var(--tech-line) !important; }
+        #app-staff .text-indigo-600, #app-staff .text-indigo-500 { color: var(--tech-teal) !important; }
+        #app-staff .border-indigo-50, #app-staff .border-indigo-200 { border-color: #b9e7e8 !important; }
+        #app-staff .bg-indigo-50 { background-color: #e4f5f5 !important; }
+        #app-staff .shadow-lg, #app-staff .shadow-sm, #app-staff .shadow-md { box-shadow: 0 8px 18px -14px rgba(11, 37, 69, .34) !important; }
+        #app-staff .rounded-3xl { border-radius: 18px !important; }
+        #app-staff .rounded-2xl { border-radius: 14px !important; }
+        #app-staff > nav { border-color: var(--tech-line) !important; }
+        @media (max-width: 1023px) {
+            #app-staff > nav { background: rgba(255,255,255,.97) !important; }
+            #app-staff > nav button { color: #6b7f95 !important; }
+            #app-staff > nav button.tab-active { color: var(--tech-teal) !important; background: transparent !important; }
+            #app-staff > nav button.tab-active i { color: var(--tech-teal) !important; }
         }
     </style>
 </head>
