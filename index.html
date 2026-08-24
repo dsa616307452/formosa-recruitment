@@ -11,19 +11,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); --tech-navy: #0b2545; --tech-navy-light: #123b66; --tech-teal: #0f8b8d; --tech-sky: #eaf3fb; --tech-line: #d7e3f0; }
-        body { font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif; background: #f4f7fb; color: #102a43; -webkit-tap-highlight-color: transparent; }
-        .tab-active { color: var(--tech-teal) !important; } .tab-active i { transform: translateY(-4px); color: var(--tech-teal) !important; }
+        :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
+        body { font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif; background: #fdfdfd; color: #0f172a; -webkit-tap-highlight-color: transparent; }
+        .tab-active { color: #0f172a !important; } .tab-active i { transform: translateY(-4px); color: #0f172a !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
         .modal-active { transform: translateY(0%) !important; }
-        .btn-primary { background: linear-gradient(135deg, var(--tech-navy-light) 0%, var(--tech-navy) 100%); box-shadow: 0 10px 20px -5px rgba(11, 37, 69, 0.28); }
-        .stat-card { background: white; border: 1px solid var(--tech-line); border-radius: 16px; padding: 16px; box-shadow: 0 8px 20px -14px rgba(11, 37, 69, 0.24); }
+        .btn-primary { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.3); }
+        .stat-card { background: white; border: 1px solid #f1f5f9; border-radius: 20px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .form-input { width: 100%; background: #f7faff; border: 1px solid var(--tech-line); border-radius: 12px; padding: 16px; font-weight: 700; outline: none; transition: all 0.2s; }
-        .form-input:focus { background: #fff; border-color: var(--tech-teal); box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.10); }
+        .form-input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; font-weight: 700; outline: none; transition: all 0.2s; }
+        .form-input:focus { background: #fff; border-color: #0f172a; box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05); }
         .form-input.input-error { border-color: #f43f5e !important; background: #fff1f2 !important; }
         .form-input.input-success { border-color: #10b981 !important; background: #f0fdf4 !important; }
         .form-label { font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: block; }
@@ -34,7 +34,7 @@
         .group-btn.open .chevron { transform: rotate(180deg); }
         .cb-label { display: inline-flex; align-items: center; gap: 4px; background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; }
         .cb-label:hover { background: #f8fafc; }
-        .cb-label:has(input:checked) { background: var(--tech-navy); color: white; border-color: var(--tech-navy); }
+        .cb-label:has(input:checked) { background: #0f172a; color: white; border-color: #0f172a; }
         .cb-label input { display: none; }
         select.appearance-none {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 8l5 5 5-5'/%3e%3c/svg%3e") !important;
@@ -48,21 +48,20 @@
         .candidate-step-section { display: none; }
         .candidate-step-section.step-active { display: block; animation: fadeIn 0.3s ease-out; }
         .candidate-step-dot { transition: all 0.25s ease; }
-        .candidate-step-dot.is-active { background: var(--tech-navy); color: white; border-color: var(--tech-navy); transform: scale(1.05); }
-        .candidate-step-dot.is-complete { background: #dff5f5; color: #0a7274; border-color: #b9e7e8; }
+        .candidate-step-dot.is-active { background: #0f172a; color: white; border-color: #0f172a; transform: scale(1.05); }
+        .candidate-step-dot.is-complete { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
 
         /* 後台：手機維持底部導覽，平板以上與桌面改為固定側邊欄 */
         @media (min-width: 768px) {
             #app-staff > header { margin-left: 240px; padding: 20px 32px; }
             #app-staff > main { margin-left: 240px; padding: 32px; padding-bottom: 48px; overflow: visible; }
             #app-staff > main > div { max-width: 1240px; margin-left: auto; margin-right: auto; }
-            #app-staff > nav { top: 0; bottom: 0; right: auto; width: 240px; padding: 28px 16px; flex-direction: column; justify-content: flex-start; gap: 8px; border-top: 0; border-right: 1px solid #173b62; background: var(--tech-navy); }
-            #app-staff > nav::before { content: 'FORMOSA\A 招募管理'; white-space: pre; padding: 4px 12px 22px; font-size: 18px; line-height: 1.2; font-weight: 900; font-style: normal; color: white; }
+            #app-staff > nav { top: 0; bottom: 0; right: auto; width: 240px; padding: 28px 16px; flex-direction: column; justify-content: flex-start; gap: 8px; border-top: 0; border-right: 1px solid #e2e8f0; background: rgba(255,255,255,.98); }
+            #app-staff > nav::before { content: 'FORMOSA\A 招募管理'; white-space: pre; padding: 4px 12px 22px; font-size: 18px; line-height: 1.2; font-weight: 900; font-style: italic; color: #0f172a; }
             #app-staff > nav button { flex: none !important; width: 100%; min-height: 48px; padding: 12px 14px; flex-direction: row !important; justify-content: flex-start; gap: 12px !important; border-radius: 14px; }
-            #app-staff > nav button.tab-active { background: rgba(15, 139, 141, .28); color: white !important; }
+            #app-staff > nav button.tab-active { background: #0f172a; color: white !important; }
             #app-staff > nav button.tab-active i { transform: none; color: white !important; }
             #app-staff > nav button span { font-size: 12px; }
-            #app-staff > nav button { color: #b8cbe0 !important; }
             #todayGrid, #jobsList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             #jobsList { display: grid; gap: 16px; }
             #jobsList > * { margin-top: 0 !important; } /* 網格已經用 gap 控制間距，避免 space-y-4 的上邊距讓兩欄卡片對不齊 */
@@ -76,31 +75,6 @@
             #mAdvancedInfo { display: block !important; }
             .form-input { border: 1px solid #cbd5e1 !important; background: transparent !important; }
             .stat-card { border: 1px solid #ccc !important; box-shadow: none !important; }
-        }
-
-        /* 俐落科技感：維持既有版面與功能，只統一後台的色彩、密度與辨識層級 */
-        #view-landing { background: radial-gradient(circle at 20% 15%, #e0f3f6 0, transparent 35%), linear-gradient(145deg, #f7fbff 0%, #eaf2fa 100%) !important; }
-        #view-landing > div:first-child > div { background: linear-gradient(135deg, var(--tech-navy-light), var(--tech-navy)) !important; border-radius: 18px; }
-        #view-landing h1, #app-staff .text-slate-900 { color: #102a43 !important; font-style: normal !important; }
-        #app-staff { background: #f4f7fb !important; }
-        #app-staff > header { background: rgba(255,255,255,.94) !important; border-color: var(--tech-line) !important; }
-        #app-staff .bg-slate-900 { background-color: var(--tech-navy) !important; }
-        #app-staff .bg-slate-800 { background-color: var(--tech-navy-light) !important; }
-        #app-staff .bg-slate-50 { background-color: #f4f8fc !important; }
-        #app-staff .bg-slate-100 { background-color: #eaf1f8 !important; }
-        #app-staff .border-slate-100, #app-staff .border-slate-200 { border-color: var(--tech-line) !important; }
-        #app-staff .text-indigo-600, #app-staff .text-indigo-500 { color: var(--tech-teal) !important; }
-        #app-staff .border-indigo-50, #app-staff .border-indigo-200 { border-color: #b9e7e8 !important; }
-        #app-staff .bg-indigo-50 { background-color: #e4f5f5 !important; }
-        #app-staff .shadow-lg, #app-staff .shadow-sm, #app-staff .shadow-md { box-shadow: 0 8px 18px -14px rgba(11, 37, 69, .34) !important; }
-        #app-staff .rounded-3xl { border-radius: 18px !important; }
-        #app-staff .rounded-2xl { border-radius: 14px !important; }
-        #app-staff > nav { border-color: var(--tech-line) !important; }
-        @media (max-width: 767px) {
-            #app-staff > nav { background: rgba(255,255,255,.97) !important; }
-            #app-staff > nav button { color: #6b7f95 !important; }
-            #app-staff > nav button.tab-active { color: var(--tech-teal) !important; background: transparent !important; }
-            #app-staff > nav button.tab-active i { color: var(--tech-teal) !important; }
         }
     </style>
 </head>
@@ -170,7 +144,6 @@
         </div>
 
         <form id="candidateForm" class="flex-1 overflow-y-auto px-6 py-8 space-y-8 max-w-3xl w-full mx-auto">
-            <p class="text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-2xl px-4 py-3">本表單所有欄位皆為必填；沒有相關資料或經驗時，請填寫「無」或選擇「無／不適用」。</p>
             <!-- 區塊一：基本資料與條件 -->
             <div data-candidate-step="1" class="candidate-step-section step-active bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
                 <label class="text-sm font-[1000] text-slate-900 italic block mb-2 flex items-center gap-2"><i data-lucide="user" class="w-4 h-4 text-indigo-500"></i> 基本資料</label>
@@ -203,8 +176,8 @@
                 </div>
                 <div>
                     <label class="form-label">特殊身分別 (可複選)</label>
-                    <div class="flex flex-wrap gap-2" data-required-group="cIdentity">
-                        <label class="cb-label"><input type="checkbox" name="cIdentity" value="無／不適用" data-none-option>無／不適用</label>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="cb-label"><input type="checkbox" name="cIdentity" value="無特殊身分別">無</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="中低收入戶">中低收入戶</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="原住民">原住民</label>
                         <label class="cb-label"><input type="checkbox" name="cIdentity" value="身障">身障</label>
@@ -257,8 +230,9 @@
                         <label class="form-label">應徵職位 Position</label>
                         <select id="cPos" class="form-input bg-white appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select>
                     </div>
-                    <div class="col-span-1"><label class="form-label">希望待遇 Salary</label><input type="text" id="cExpectedSalary" class="form-input bg-white" placeholder="例: 35000"></div>
+                    <div class="col-span-1"><label class="form-label">應徵分部</label><select id="cBranch" required class="form-input bg-white appearance-none"><option value="">請選擇分部</option><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
                 </div>
+                <div><label class="form-label">希望待遇 Salary</label><input type="text" id="cExpectedSalary" class="form-input bg-white" placeholder="例: 35000"></div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-1"><label class="form-label">可否輪班</label><select id="cShift" class="form-input bg-white appearance-none"><option value="可">可</option><option value="否">否</option></select></div>
                     <div class="col-span-1"><label class="form-label">最快可到職日</label><input type="date" id="cAvailDate" class="form-input bg-white text-slate-500"></div>
@@ -273,8 +247,7 @@
                 </div>
                 <div>
                     <label class="form-label">加保狀態 (可複選)</label>
-                    <div class="flex flex-wrap gap-2" data-required-group="cInsurance">
-                        <label class="cb-label"><input type="checkbox" name="cInsurance" value="無／不適用" data-none-option>無／不適用</label>
+                    <div class="flex flex-wrap gap-2">
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="正常加保">正常加保</label>
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="已領勞退/公保">已領勞退/公保</label>
                         <label class="cb-label"><input type="checkbox" name="cInsurance" value="有眷屬一同加保">有眷屬一同加保</label>
@@ -342,8 +315,8 @@
                     </div>
                     <div>
                         <label class="text-[9px] font-bold text-slate-500 block mb-1 mt-2">區分所有權人會議 (可複選)</label>
-                        <div class="flex flex-wrap gap-1.5" data-required-group="cSkillOwner">
-                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="無／不適用" data-none-option>無／不適用</label>
+                        <div class="flex flex-wrap gap-1.5">
+                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="無經驗">無經驗</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="曾擔任支援人力">曾擔任支援人力</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="資料整備">資料整備</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cSkillOwner" value="可獨立籌備整場會議">可獨立籌備</label>
@@ -354,8 +327,7 @@
 
                 <div>
                     <label class="form-label">社區櫃台系統操作 (可複選)</label>
-                    <div class="flex flex-wrap gap-2" data-required-group="cSkillSystem">
-                        <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="無／不適用" data-none-option>無／不適用</label>
+                    <div class="flex flex-wrap gap-2">
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="今網智生活">今網智生活</label>
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="homego">homego</label>
                         <label class="cb-label"><input type="checkbox" name="cSkillSystem" value="新都興">新都興</label>
@@ -373,8 +345,7 @@
                     <p class="text-[10px] font-black text-slate-400 mb-2">語言能力 (可複選)</p>
                     <div>
                         <span class="text-[9px] font-bold text-slate-500 inline-block w-8">台語:</span>
-                        <div class="inline-flex flex-wrap gap-1.5 ml-2" data-required-group="cLangTW">
-                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="無／不適用" data-none-option>無／不適用</label>
+                        <div class="inline-flex flex-wrap gap-1.5 ml-2">
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="聽">聽</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="說">說</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangTW" value="讀">讀</label>
@@ -384,8 +355,7 @@
                     </div>
                     <div>
                         <span class="text-[9px] font-bold text-slate-500 inline-block w-8">英語:</span>
-                        <div class="inline-flex flex-wrap gap-1.5 ml-2" data-required-group="cLangEN">
-                            <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="無／不適用" data-none-option>無／不適用</label>
+                        <div class="inline-flex flex-wrap gap-1.5 ml-2">
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="聽">聽</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="說">說</label>
                             <label class="cb-label !text-[10px] !px-2 !py-1"><input type="checkbox" name="cLangEN" value="讀">讀</label>
@@ -561,11 +531,11 @@
             <div id="view-stats" class="hidden space-y-6">
                 <div class="flex flex-col gap-3">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">數據統計</h2>
-                        <select id="statMonthFilter" onchange="handleStatFilterChange()" class="bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl border-none outline-none shadow-lg active:scale-95 transition-transform">
+                        <div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">數據統計</h2><p id="statBranchSummary" class="text-[10px] font-black text-indigo-500 mt-1">分部資料載入中</p></div>
+                        <div class="flex gap-2"><select id="statBranchFilter" onchange="renderCurrentStatsByBranch()" class="hidden bg-indigo-600 text-white text-[10px] font-black px-3 py-2 rounded-xl border-none outline-none"><option value="全部">全部分部</option></select><select id="statMonthFilter" onchange="handleStatFilterChange()" class="bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl border-none outline-none shadow-lg active:scale-95 transition-transform">
                             <option value="all">所有紀錄</option>
                             <option value="custom">自訂區間...</option>
-                        </select>
+                        </select></div>
                     </div>
                     
                     <div id="customDateRange" class="hidden flex items-center justify-between gap-2 bg-slate-100 p-2.5 rounded-2xl shadow-inner fade-in">
@@ -709,6 +679,11 @@
                         <label class="form-label">可使用的功能</label>
                         <p class="text-[10px] font-bold text-slate-400 -mt-2 mb-2">只勾選的功能會出現在這位同事的畫面下方導覽列</p>
                         <div id="amPermissionList" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <label class="form-label">可查看的分部</label>
+                        <p class="text-[10px] font-bold text-slate-400 -mt-2 mb-2">一般帳號只能查看勾選分部的職缺、人才與分析</p>
+                        <div id="amBranchList" class="space-y-2"></div>
                     </div>
 
                     <button onclick="submitAccountModal()" id="amSubmitBtn" class="w-full bg-slate-900 text-white font-black py-3.5 rounded-2xl">建立帳號</button>
@@ -944,6 +919,7 @@
         <form id="jd-edit-mode" onsubmit="updateJob(event)" class="hidden flex-1 overflow-y-auto px-6 py-8 space-y-4 bg-slate-50/50">
             <input type="hidden" id="jedRowId">
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">社區名稱</label><input type="text" id="jedCommunity" class="form-input"></div><div><label class="form-label">位置 (區域)</label><input type="text" id="jedLocation" class="form-input"></div></div>
+            <div><label class="form-label">所屬分部</label><select id="jedBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
             <div><label class="form-label">缺員編制</label><select id="jedPos" class="form-input appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select></div>
             <div><label class="form-label">上班時間</label><input type="text" id="jedTime" class="form-input"></div>
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">異動員工</label><input type="text" id="jedResigned" class="form-input"></div><div><label class="form-label">缺員原因</label><select id="jedReason" class="form-input appearance-none"><option value="員工離職">員工離職</option><option value="進場編制">進場編制</option><option value="加新編制">加新編制</option><option value="汰換員工">汰換員工</option><option value="人員異動">人員異動</option><option value="員工留任">員工留任</option></select></div></div>
@@ -969,6 +945,7 @@
         <div class="px-6 py-4 flex justify-between items-center border-b border-slate-50"><h3 class="text-xl font-[1000] italic text-slate-900">新增職缺需求</h3><button onclick="closeJobModal()" class="w-10 h-10 flex items-center justify-center text-slate-400 bg-slate-50 rounded-full"><i data-lucide="x" class="w-6 h-6"></i></button></div>
         <form id="jobForm" onsubmit="submitJob(event)" class="flex-1 overflow-y-auto px-6 py-8 space-y-4">
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">社區名稱</label><input type="text" id="jCommunity" required class="form-input" placeholder="名稱"></div><div><label class="form-label">位置 (區域)</label><input type="text" id="jLocation" required class="form-input" placeholder="例如: 大安區"></div></div>
+            <div><label class="form-label">所屬分部</label><select id="jBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
             <div><label class="form-label">缺員編制</label><select id="jPos" class="form-input appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select></div>
             <div><label class="form-label">上班時間</label><input type="text" id="jTime" class="form-input" placeholder="例如: 07:00-19:00"></div>
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">異動員工</label><input type="text" id="jResigned" class="form-input" placeholder="姓名"></div><div><label class="form-label">缺員原因</label><select id="jReason" class="form-input appearance-none"><option value="員工離職">員工離職</option><option value="進場編制">進場編制</option><option value="加新編制">加新編制</option><option value="汰換員工">汰換員工</option><option value="人員異動">人員異動</option><option value="員工留任">員工留任</option></select></div></div>
@@ -1254,13 +1231,6 @@
         var currentCandidateStep = 1;
         var currentStaffTab = 'today';
         var CANDIDATE_STEP_LABELS = ['基本與聯絡', '應徵條件與經歷', '背景與能力', '確認並送出'];
-        var CANDIDATE_REQUIRED_FIELDS = {
-            1: ['cName', 'cIdNumber', 'cGender', 'cBirthday', 'cAge', 'cHeight', 'cWeight', 'cBloodType', 'cBirthplace', 'cPhone', 'cHomePhone', 'addrCity', 'addrDist', 'addrDetail', 'cFamilyStatus', 'cChildren', 'cEmgName', 'cEmgRelation', 'cEmgPhone', 'cEmgAddress'],
-            2: ['cPos', 'cExpectedSalary', 'cShift', 'cAvailDate', 'cCommute', 'cWorkedBefore', 'cSource', 'cReferrer', 'cSchool', 'cEduStatus', 'cMajor', 'cExp1Co', 'cExp1Title', 'cExp1Time', 'cExp1Salary', 'cExp1Leave', 'cExp2Co', 'cExp2Title', 'cExp2Time', 'cExp2Salary', 'cExp2Leave', 'cServedSites', 'cMilitary', 'cMilitaryBranch'],
-            3: ['cHealth', 'cDisability', 'cCriminal', 'cPassport', 'cCert', 'cSkillFinance', 'cSkillMeeting', 'cSkillOrg', 'cSkillWord', 'cSkillExcel', 'cSkillPPT', 'cLangOther', 'cSkill'],
-            4: ['cConsent']
-        };
-        var CANDIDATE_REQUIRED_SELECTS = ['cGender', 'cBloodType', 'cPos', 'cShift', 'cWorkedBefore', 'cSource', 'cEduStatus', 'cDisability', 'cCriminal', 'cPassport', 'cSkillFinance', 'cSkillMeeting', 'cSkillOrg', 'cSkillWord', 'cSkillExcel', 'cSkillPPT'];
         var draftSaveTimer = null;
 
         var trainingChartInstance = null;
@@ -1269,64 +1239,8 @@
         window.onload = function() { 
             lucide.createIcons(); 
             initAddressSelectors();
-            prepareCandidateRequiredFields();
             setupFormAutoSave();
         };
-
-        function prepareCandidateRequiredFields() {
-            Object.keys(CANDIDATE_REQUIRED_FIELDS).forEach(function(step) {
-                CANDIDATE_REQUIRED_FIELDS[step].forEach(function(id) {
-                    var field = document.getElementById(id);
-                    if (field) field.required = true;
-                });
-            });
-            CANDIDATE_REQUIRED_SELECTS.forEach(function(id) {
-                var select = document.getElementById(id);
-                if (!select || select.dataset.requiredPrepared === 'true') return;
-                if (!select.options.length || select.options[0].value !== '') {
-                    var placeholder = document.createElement('option');
-                    placeholder.value = '';
-                    placeholder.textContent = '請選擇...';
-                    placeholder.disabled = true;
-                    select.insertBefore(placeholder, select.firstChild);
-                    select.value = '';
-                }
-                select.dataset.requiredPrepared = 'true';
-            });
-            document.querySelectorAll('[data-required-group]').forEach(function(group) {
-                group.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
-                    input.addEventListener('change', function() { handleRequiredChoice(input); });
-                });
-            });
-        }
-
-        function handleRequiredChoice(changedInput) {
-            var group = changedInput.closest('[data-required-group]');
-            if (!group) return;
-            var inputs = group.querySelectorAll('input[type="checkbox"]');
-            if (changedInput.hasAttribute('data-none-option') && changedInput.checked) {
-                inputs.forEach(function(input) { if (input !== changedInput) input.checked = false; });
-            } else if (changedInput.checked) {
-                inputs.forEach(function(input) { if (input.hasAttribute('data-none-option')) input.checked = false; });
-            }
-        }
-
-        function validateCandidateRequiredGroups(step) {
-            var sections = document.querySelectorAll('[data-candidate-step="' + step + '"]');
-            for (var i = 0; i < sections.length; i++) {
-                var groups = sections[i].querySelectorAll('[data-required-group]');
-                for (var j = 0; j < groups.length; j++) {
-                    var inputs = groups[j].querySelectorAll('input[type="checkbox"]');
-                    var checked = groups[j].querySelector('input[type="checkbox"]:checked');
-                    if (!checked && inputs.length) {
-                        alert('請至少選擇一項，沒有相關資料時請選「無／不適用」');
-                        inputs[0].focus();
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
 
         // --- 台灣身分證字號檢核碼演算法 ---
         function validateTWID(id) {
@@ -1563,7 +1477,8 @@
             
             if (result === '錄取') {
                 container.classList.remove('hidden');
-                var activeJobs = allJobs.filter(function(j) { return j.systemClosed !== '結案'; });
+                var currentCandidate = db.find(function(item) { return String(item.rowId) === String(document.getElementById('mRowId').value); });
+                var activeJobs = allJobs.filter(function(j) { return j.systemClosed !== '結案' && (!currentCandidate || j.branch === currentCandidate._branch); });
                 
                 select.innerHTML = '<option value="">(不指定案場，僅標示錄取)</option>';
                 
@@ -1644,7 +1559,6 @@
         }
 
         function validateCandidateStep(step) {
-            prepareCandidateRequiredFields();
             var sections = document.querySelectorAll('[data-candidate-step="' + step + '"]');
             for (var i = 0; i < sections.length; i++) {
                 var requiredFields = sections[i].querySelectorAll('[required]');
@@ -1656,7 +1570,6 @@
                     }
                 }
             }
-            if (!validateCandidateRequiredGroups(step)) return false;
             if (step === 1) {
                 var phone = document.getElementById('cPhone');
                 var idNumber = document.getElementById('cIdNumber');
@@ -1702,7 +1615,6 @@
             document.getElementById('view-landing').classList.add('hidden'); 
             document.getElementById('app-candidate').classList.remove('hidden'); 
             initAddressSelectors();
-            prepareCandidateRequiredFields();
             checkDraftExists();
             setCandidateStep(1);
             lucide.createIcons(); 
@@ -1807,7 +1719,16 @@
             resetAndRenderDB();
         }
         
+        function populateJobBranchSelect(id, selectedBranch) {
+            var select = document.getElementById(id);
+            if (!select) return;
+            var allowed = currentUser && currentUser.isAdmin ? ['台中總部', '港區分部', '新北分部'] : ((currentUser && currentUser.branches) || []);
+            select.innerHTML = allowed.map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
+            if (allowed.indexOf(selectedBranch) !== -1) select.value = selectedBranch;
+        }
+
         function openJobModal() { 
+            populateJobBranchSelect('jBranch', (currentUser && currentUser.branches || [])[0] || '台中總部');
             document.getElementById('job-modal').classList.add('modal-active'); 
             var mgrInput = document.getElementById('jManager');
             if (mgrInput && !mgrInput.value && currentUser) mgrInput.value = currentUser.name;
@@ -1841,6 +1762,7 @@
             document.getElementById('jedRowId').value = job.rowId;
             document.getElementById('jedCommunity').value = job.community || "";
             document.getElementById('jedLocation').value = job.location || "";
+            populateJobBranchSelect('jedBranch', job.branch || "台中總部");
             document.getElementById('jedPos').value = job.position || "日班保全";
             document.getElementById('jedTime').value = job.workTime || "";
             document.getElementById('jedResigned').value = job.resignedEmp || "";
@@ -1929,6 +1851,7 @@
 
             var jobData = {
                 rowId: document.getElementById('jedRowId').value,
+                branch: document.getElementById('jedBranch').value,
                 community: document.getElementById('jedCommunity').value,
                 location: document.getElementById('jedLocation').value,
                 position: document.getElementById('jedPos').value,
@@ -1959,6 +1882,7 @@
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-5 h-5"></i> 處理中...';
             var jobData = {
+                branch: document.getElementById('jBranch').value,
                 community: document.getElementById('jCommunity').value,
                 location: document.getElementById('jLocation').value,
                 position: document.getElementById('jPos').value,
@@ -2089,10 +2013,10 @@
                 var noteSnippet = j.note ? '<div class="mt-2 text-[10px] text-slate-500 bg-white/50 border border-slate-200/50 p-2 rounded-lg truncate"><span class="font-bold mr-1">備註:</span>'+escapeHtml(j.note)+'</div>' : '';
                 var closeBtn = isClosed ? '' : '<button onclick="event.stopPropagation(); updateJobStatus('+j.rowId+')" class="text-[9px] font-black border border-slate-200 text-slate-400 px-3 py-1 rounded-full hover:bg-white hover:border-slate-300 transition-colors z-10 relative">結案</button>';
                 var urgentBadge = isUrgent && !isClosed ? '<span class="ml-2 text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded-md italic uppercase tracking-widest animate-pulse">URGENT</span>' : '';
-                var locationBadge = '<div class="mt-1.5"><span class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-sm tracking-wide"><i data-lucide="map-pin" class="w-3 h-3"></i>' + escapeHtml(j.location || "未填寫區域") + '</span></div>';
+                var locationBadge = '<div class="mt-1.5 flex flex-wrap gap-1.5"><span class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-sm tracking-wide"><i data-lucide="map-pin" class="w-3 h-3"></i>' + escapeHtml(j.location || "未填寫區域") + '</span><span class="inline-flex items-center bg-indigo-50 text-indigo-600 text-[10px] font-black px-2.5 py-1 rounded-lg">' + escapeHtml(j.branch || '台中總部') + '</span></div>';
                 var mgrBadge = selectedJobManager === '全部' ? '<span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">' + escapeHtml(j.unitManager || '未指定主管') + '</span>' : '';
 
-                html += '<div onclick="openJobDetail('+j.rowId+')" class="' + cardBaseClass + cardColorClass + '">';
+                html += '<div onclick="openJobDetail(' + JSON.stringify(j.rowId) + ')" class="' + cardBaseClass + cardColorClass + '">';
                 html +=   '<div class="flex justify-between items-start mb-3">';
                 html +=     '<div>';
                 html +=       '<div><span class="text-lg font-[1000] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-xl italic tracking-tight inline-block">'+escapeHtml(j.community)+'</span>'+urgentBadge+'</div>';
@@ -2117,13 +2041,6 @@
         function submitCandidate(e) { 
             if (e) e.preventDefault(); 
             if (isSubmitting) return;
-
-            prepareCandidateRequiredFields();
-            for (var validationStep = 1; validationStep <= 4; validationStep++) {
-                setCandidateStep(validationStep);
-                if (!validateCandidateStep(validationStep)) return;
-            }
-            setCandidateStep(4);
 
             var form = document.getElementById('candidateForm');
             var city = document.getElementById('addrCity').value;
@@ -2176,6 +2093,7 @@
                 weight: document.getElementById('cWeight').value,
                 birthday: document.getElementById('cBirthday').value,
                 position: document.getElementById('cPos').value, 
+                branch: document.getElementById('cBranch').value,
                 address: city + dist + detail, 
                 source: document.getElementById('cSource').value, 
                 referrer: document.getElementById('cReferrer').value, 
@@ -2388,6 +2306,18 @@
             }
         }
 
+        function getSelectedStatBranch() {
+            var select = document.getElementById('statBranchFilter');
+            return currentUser && currentUser.isAdmin && select ? select.value : '全部';
+        }
+
+        function renderCurrentStatsByBranch() {
+            var branch = getSelectedStatBranch();
+            var summary = document.getElementById('statBranchSummary');
+            if (summary) summary.textContent = branch === '全部' ? '目前顯示：全部分部' : '目前顯示：' + branch;
+            if (currentStatTab === 'training') renderTrainingStats(); else renderStats();
+        }
+
         function applyCustomDateFilter() {
             if (currentStatTab === 'interview') renderStats();
             else renderTrainingStats();
@@ -2399,7 +2329,9 @@
             var startDate = document.getElementById('statStartDate').value;
             var endDate = document.getElementById('statEndDate').value;
 
+            var selectedBranch = getSelectedStatBranch();
             var filteredData = db.filter(function(x) { 
+                if (selectedBranch !== '全部' && x._branch !== selectedBranch) return false;
                 if (selectedMonth === 'all') return true;
                 if (selectedMonth === 'custom') {
                     var dStr = x["時間戳記"] || "";
@@ -2717,7 +2649,7 @@
                 var cardBorderClass = isBlacklisted ? 'border-red-200 ring-1 ring-red-100' : 'border-slate-100 hover:border-slate-200';
                 var blacklistBadge = isBlacklisted ? '<span class="inline-flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide animate-pulse">⚠ 疑似黑名單</span>' : '';
                 
-                return '<div onclick="openModal('+t.rowId+')" class="bg-white border '+cardBorderClass+' rounded-2xl p-5 flex items-center justify-between active:bg-slate-50 shadow-sm cursor-pointer group transition-all">' +
+                return '<div onclick="openModal(' + JSON.stringify(t.rowId) + ')" class="bg-white border '+cardBorderClass+' rounded-2xl p-5 flex items-center justify-between active:bg-slate-50 shadow-sm cursor-pointer group transition-all">' +
                        '<div class="flex-1">' +
                            '<div class="flex items-center gap-2 mb-2 flex-wrap">' +
                                '<h4 class="text-lg font-black italic text-slate-900">'+escapeHtml(t["姓名"] || "未填寫")+'</h4>' +
@@ -2756,7 +2688,7 @@
                 ? '<div class="py-20 text-center border-2 border-dashed border-slate-100 rounded-[40px] text-slate-300 italic font-black text-sm">今日尚無待面試人員</div>' 
                 : entries.map(function(t) { 
                     var pos = t._position || t["應徵職位"] || "未註明";
-                    return '<div onclick="openModal('+t.rowId+')" class="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm active:scale-[0.98] transition-all cursor-pointer group relative overflow-hidden">' +
+                    return '<div onclick="openModal(' + JSON.stringify(t.rowId) + ')" class="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm active:scale-[0.98] transition-all cursor-pointer group relative overflow-hidden">' +
                            '<div class="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-[40px] -z-0 transition-transform duration-500 group-hover:scale-110"></div>' +
                            '<div class="relative z-10 flex-1">' +
                                '<div class="flex justify-between items-start mb-2">' +
@@ -3288,7 +3220,7 @@
                 return '<section class="space-y-2"><h3 class="text-xs font-black ' + group.tone + '">' + group.title + ' <span class="text-slate-300">' + items.length + '</span></h3>' + items.map(function(item) {
                     var bucket = getFollowUpBucket(item, today);
                     var tone = bucket === 'overdue' ? 'border-rose-200 bg-rose-50/40' : (bucket === 'today' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100 bg-white');
-                    return '<button type="button" onclick="openModal(' + item.rowId + ')" class="w-full text-left border ' + tone + ' rounded-2xl p-4 hover:shadow-sm transition-shadow"><div class="flex justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-900">' + escapeHtml(item['姓名'] || '未填姓名') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1">' + escapeHtml(item._position || item['應徵職位'] || '未填職位') + '・負責：' + escapeHtml(getFollowUpOwnerName(item._followUpOwner)) + '</p></div><span class="shrink-0 text-[10px] font-black ' + (bucket === 'overdue' ? 'text-rose-500' : bucket === 'today' ? 'text-amber-600' : 'text-indigo-500') + '">' + escapeHtml(getFollowUpDayLabel(item, today)) + '</span></div>' + (item._followUpNote ? '<p class="mt-3 text-xs text-slate-600 bg-white/70 rounded-xl p-2.5">' + escapeHtml(item._followUpNote) + '</p>' : '') + '</button>'; }).join('') + '</section>';
+                    return '<button type="button" onclick="openModal(' + JSON.stringify(item.rowId) + ')" class="w-full text-left border ' + tone + ' rounded-2xl p-4 hover:shadow-sm transition-shadow"><div class="flex justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-900">' + escapeHtml(item['姓名'] || '未填姓名') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1">' + escapeHtml(item._position || item['應徵職位'] || '未填職位') + '・負責：' + escapeHtml(getFollowUpOwnerName(item._followUpOwner)) + '</p></div><span class="shrink-0 text-[10px] font-black ' + (bucket === 'overdue' ? 'text-rose-500' : bucket === 'today' ? 'text-amber-600' : 'text-indigo-500') + '">' + escapeHtml(getFollowUpDayLabel(item, today)) + '</span></div>' + (item._followUpNote ? '<p class="mt-3 text-xs text-slate-600 bg-white/70 rounded-xl p-2.5">' + escapeHtml(item._followUpNote) + '</p>' : '') + '</button>'; }).join('') + '</section>';
             }).join('');
             document.getElementById('followUpList').innerHTML = html || '<div class="py-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-300 text-sm font-black">目前沒有符合條件的追蹤人才</div>';
             lucide.createIcons();
@@ -3371,7 +3303,16 @@
             var userName = document.getElementById('staffUserName');
             var permissionSummary = document.getElementById('staffPermissionSummary');
             if (userName) userName.textContent = (user && user.name) || (user && user.email) || '已登入使用者';
-            if (permissionSummary) permissionSummary.textContent = user && user.isAdmin ? '系統管理員・完整權限' : allowedKeys.map(function(key) { return permissionLabels[key] || key; }).join('・');
+            if (permissionSummary) permissionSummary.textContent = user && user.isAdmin ? '系統管理員・全部分部' : ((user && user.branches || []).join('、') + '・' + allowedKeys.map(function(key) { return permissionLabels[key] || key; }).join('・'));
+            var statBranchSummary = document.getElementById('statBranchSummary');
+            if (statBranchSummary) statBranchSummary.textContent = user && user.isAdmin ? '目前顯示：全部分部' : '目前顯示：' + ((user && user.branches || []).join('、') || '未指派分部');
+            var statBranchFilter = document.getElementById('statBranchFilter');
+            if (statBranchFilter) {
+                if (user && user.isAdmin) {
+                    statBranchFilter.innerHTML = '<option value="全部">全部分部</option>' + ['台中總部', '港區分部', '新北分部'].map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
+                    statBranchFilter.classList.remove('hidden');
+                } else statBranchFilter.classList.add('hidden');
+            }
             document.getElementById('followUpReminderAdmin').classList.toggle('hidden', !(user && (user.isAdmin || allowedKeys.indexOf('accounts') > -1)));
             if (firstTab) switchTab(firstTab);
         }
@@ -3393,11 +3334,12 @@
                     var permHtml = permLabels.length > 0 ?
                         permLabels.map(function(l) { return '<span class="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">' + escapeHtml(l) + '</span>'; }).join(' ') :
                         '<span class="text-[9px] font-bold text-slate-300">尚未指派任何功能</span>';
+                    var branchHtml = (a.branches || []).length ? '<p class="text-[10px] font-bold text-indigo-500 mt-2">分部：' + escapeHtml(a.branches.join('、')) + '</p>' : '<p class="text-[10px] font-bold text-rose-400 mt-2">尚未指派分部</p>';
                     var lockUntil = a.lockUntil ? new Date(a.lockUntil) : null;
                     var isLocked = lockUntil && !isNaN(lockUntil.getTime()) && lockUntil.getTime() > Date.now();
                     var lockHtml = isLocked ? '<p class="text-[10px] font-black text-rose-500 mt-2">暫時鎖定至 ' + escapeHtml(lockUntil.toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' })) + '</p>' : (Number(a.failedLoginCount || 0) ? '<p class="text-[10px] font-bold text-amber-600 mt-2">連續登入失敗 ' + escapeHtml(a.failedLoginCount) + ' 次</p>' : '');
                     var unlockAction = isLocked ? '<button onclick="unlockAccount(\'' + escapeHtml(a.email) + '\')" class="text-rose-500">解除鎖定</button>' : '';
-                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + escapeHtml(a.email) + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div><p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p>' + lockHtml + '<div class="flex flex-wrap gap-4 mt-3 text-xs font-black">' + actions + '<button onclick="resetAccountPassword(\'' + escapeHtml(a.email) + '\')" class="text-slate-400">重設密碼</button>' + unlockAction + '</div></div>';
+                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + escapeHtml(a.email) + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div>' + branchHtml + '<p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p>' + lockHtml + '<div class="flex flex-wrap gap-4 mt-3 text-xs font-black">' + actions + '<button onclick="resetAccountPassword(\'' + escapeHtml(a.email) + '\')" class="text-slate-400">重設密碼</button>' + unlockAction + '</div></div>';
                 }).join('') || '<p class="text-center text-slate-300 py-10">尚無帳號申請</p>';
             }).apiGetAccounts(authToken);
         }
@@ -3411,6 +3353,15 @@
             box.innerHTML = permissionDefs.map(function(p) {
                 var checked = selectedKeys.indexOf(p.key) > -1 ? 'checked' : '';
                 return '<label class="flex items-center gap-2.5 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" value="' + p.key + '" ' + checked + ' class="am-perm-checkbox w-4 h-4"><span class="text-xs font-bold text-slate-700">' + escapeHtml(p.label) + '</span></label>';
+            }).join('');
+        }
+
+        function renderBranchCheckboxes(selectedBranches) {
+            var selected = selectedBranches || [];
+            var branches = ['台中總部', '港區分部', '新北分部'];
+            document.getElementById('amBranchList').innerHTML = branches.map(function(branch) {
+                var checked = selected.indexOf(branch) !== -1 ? ' checked' : '';
+                return '<label class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl cursor-pointer"><input type="checkbox" class="am-branch-checkbox w-4 h-4 accent-slate-900" value="' + branch + '"' + checked + '><span class="text-xs font-black text-slate-700">' + branch + '</span></label>';
             }).join('');
         }
 
@@ -3433,6 +3384,7 @@
                         var acc = Array.isArray(accounts) ? accounts.filter(function(a) { return a.email === editEmail; })[0] : null;
                         document.getElementById('amName').value = acc ? acc.name : '';
                         renderPermissionCheckboxes(acc ? acc.permissions : []);
+                        renderBranchCheckboxes(acc ? acc.branches : []);
                     }).apiGetAccounts(authToken);
                 } else {
                     document.getElementById('accountModalTitle').innerText = '新增帳號';
@@ -3440,6 +3392,7 @@
                     document.getElementById('amEmail').disabled = false;
                     document.getElementById('amPasswordBox').classList.remove('hidden');
                     renderPermissionCheckboxes([]);
+                    renderBranchCheckboxes([]);
                 }
                 document.getElementById('account-modal').classList.remove('hidden');
                 lucide.createIcons();
@@ -3453,6 +3406,8 @@
             var email = document.getElementById('amEmail').value.trim();
             var password = document.getElementById('amPassword').value;
             var permissions = Array.prototype.slice.call(document.querySelectorAll('.am-perm-checkbox:checked')).map(function(el) { return el.value; });
+            var branches = Array.prototype.slice.call(document.querySelectorAll('.am-branch-checkbox:checked')).map(function(el) { return el.value; });
+            if (!branches.length) { alert('請至少勾選一個分部'); return; }
 
             if (!name) { alert('請輸入姓名'); return; }
             if (!email) { alert('請輸入個人 Email'); return; }
@@ -3466,13 +3421,13 @@
                     var result = JSON.parse(res);
                     btn.disabled = false;
                     if (result.status === 'success') { closeAccountModal(); fetchAccounts(); } else { alert(result.message); }
-                }).withFailureHandler(function(err) { btn.disabled = false; alert('系統連線錯誤：' + err); }).apiAdminCreateAccount(authToken, { name: name, email: email, password: password, permissions: permissions });
+                }).withFailureHandler(function(err) { btn.disabled = false; alert('系統連線錯誤：' + err); }).apiAdminCreateAccount(authToken, { name: name, email: email, password: password, permissions: permissions, branches: branches });
             } else {
                 google.script.run.withSuccessHandler(function(res) {
                     var result = JSON.parse(res);
                     btn.disabled = false;
                     if (result.status === 'success') { closeAccountModal(); fetchAccounts(); } else { alert(result.message); }
-                }).withFailureHandler(function(err) { btn.disabled = false; alert('系統連線錯誤：' + err); }).apiUpdateAccount(authToken, { email: accountModalEditEmail, status: '已核准', permissions: permissions });
+                }).withFailureHandler(function(err) { btn.disabled = false; alert('系統連線錯誤：' + err); }).apiUpdateAccount(authToken, { email: accountModalEditEmail, status: '已核准', permissions: permissions, branches: branches });
             }
         }
 
@@ -3550,7 +3505,9 @@
             var startDate = document.getElementById('statStartDate').value;
             var endDate = document.getElementById('statEndDate').value;
 
+            var selectedBranch = getSelectedStatBranch();
             var filtered = trainingDB.filter(function(item) {
+                if (selectedBranch !== '全部' && item.branch !== selectedBranch) return false;
                 if (selectedMonth === 'all') return true;
                 if (selectedMonth === 'custom') {
                     var dStr = item.trainDate || "";
