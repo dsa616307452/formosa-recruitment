@@ -740,10 +740,6 @@
                     <a id="mPhoneLink" href="#" class="bg-slate-50 p-4 rounded-2xl block active:scale-95 transition-transform border border-slate-100"><span class="text-[9px] font-black text-slate-400 uppercase block mb-1">手機撥號</span><p id="mPhone" class="text-sm font-black text-slate-900 italic">--</p></a>
                     <button onclick="openMap()" class="bg-slate-50 p-4 rounded-2xl text-left active:scale-95 transition-transform border border-slate-100"><span class="text-[9px] font-black text-slate-400 uppercase block mb-1">地址導航</span><p id="mDistrictLabel" class="text-sm font-black text-slate-900 italic break-words line-clamp-1">--</p></button>
                 </div>
-                <div class="mt-4 bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <div class="flex items-center gap-2 mb-3"><i data-lucide="map-pinned" class="w-4 h-4 text-indigo-500"></i><p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">未結案案場路線</p></div>
-                    <div id="mJobMapSites" class="space-y-2 text-xs text-slate-400">載入案場中...</div>
-                </div>
                 <div id="mBranchCorrection" class="hidden mt-4 bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
                     <div class="flex items-center gap-2 mb-3"><i data-lucide="git-branch" class="w-4 h-4 text-indigo-600"></i><p class="text-[10px] font-black text-indigo-700 uppercase tracking-widest">管理員：更正應徵分部</p></div>
                     <p class="text-[11px] font-bold text-indigo-700/70 mb-3">更正後會將完整履歷搬移至對應分部人才庫，案場推薦也會同步更新。</p>
@@ -780,6 +776,17 @@
                 
                 <input id="mSkill" type="text" placeholder="關鍵特質評語 (例: 認真負責)..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm outline-none">
                 <textarea id="mNote" rows="3" placeholder="面試官詳細評語..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-600 text-sm outline-none"></textarea>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-100 rounded-3xl overflow-hidden">
+                <button type="button" onclick="toggleJobMapSites()" class="w-full px-5 py-4 flex items-center justify-between text-left active:bg-slate-100 transition-colors">
+                    <span id="jobMapToggleLabel" class="flex items-center gap-2 text-xs font-black text-slate-700"><i data-lucide="map-pinned" class="w-4 h-4 text-indigo-500"></i><span>查看推薦案場</span></span>
+                    <i id="jobMapToggleIcon" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                </button>
+                <div id="mJobMapPanel" class="hidden px-5 pb-5 border-t border-slate-100">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-4 mb-3">同分部未結案案場</p>
+                    <div id="mJobMapSites" class="space-y-2 text-xs text-slate-400">點選上方按鈕查看推薦案場。</div>
+                </div>
             </div>
 
             <!-- 詳細資料折疊區 (擴展 40 欄位) -->
@@ -1232,6 +1239,7 @@
         var pageSize = 20; 
         var currentFullAddr = ""; 
         var openJobMapSites = [];
+        var jobMapLoadedFor = '';
         var candidatePhotoThumbnailCache = {};
         var candidatePhotoFullCache = {};
         var isSubmitting = false;
@@ -2881,11 +2889,10 @@
         function renderOpenJobMapSites() {
             var box = document.getElementById('mJobMapSites');
             if (!box) return;
-            if (!currentFullAddr) { box.innerHTML = '<p class="text-xs font-bold text-amber-600">求職者地址未完整填寫，無法規劃路線。</p>'; return; }
             if (!openJobMapSites.length) { box.innerHTML = '<p class="text-xs font-bold text-slate-400">目前沒有未結案案場。</p>'; return; }
             box.innerHTML = openJobMapSites.map(function(site, index) {
-                var hasLocation = !!String(site.location || '').trim();
-                return '<div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800 truncate">' + escapeHtml(site.community || '未命名案場') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1 truncate">' + escapeHtml(site.position || '未填職位') + '・' + escapeHtml(site.location || '案場地址未完整設定') + '</p></div>' + (hasLocation ? '<button type="button" onclick="openJobRoute(' + index + ')" class="shrink-0 text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg">規劃路線</button>' : '<span class="shrink-0 text-[10px] font-bold text-slate-300">無地址</span>') + '</div>';
+                var hasCommunity = !!String(site.community || '').trim();
+                return '<div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800 truncate">' + escapeHtml(site.community || '未命名案場') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1 truncate">' + escapeHtml(site.position || '未填職位') + '・' + escapeHtml(site.location || '案場地址未完整設定') + '</p></div>' + (hasCommunity ? '<button type="button" onclick="openJobRoute(' + index + ')" class="shrink-0 text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg">搜尋案場</button>' : '<span class="shrink-0 text-[10px] font-bold text-slate-300">無案場名稱</span>') + '</div>';
             }).join('');
             lucide.createIcons();
         }
@@ -2894,15 +2901,36 @@
             var box = document.getElementById('mJobMapSites');
             if (box) box.innerHTML = '<p class="text-xs font-bold text-slate-400">載入案場中...</p>';
             google.script.run.withSuccessHandler(function(res) {
+                if (String(document.getElementById('mRowId').value) !== String(candidateRowId)) return;
                 var result;
                 try { result = JSON.parse(res); } catch (e) { result = []; }
                 if (!Array.isArray(result)) { if (result && String(result.message || '').indexOf('登入') > -1) handleSessionExpired(result.message); openJobMapSites = []; }
                 else { openJobMapSites = result; }
+                jobMapLoadedFor = candidateRowId;
                 renderOpenJobMapSites();
             }).withFailureHandler(function() {
+                if (String(document.getElementById('mRowId').value) !== String(candidateRowId)) return;
                 openJobMapSites = [];
                 if (box) box.innerHTML = '<p class="text-xs font-bold text-rose-500">案場資料載入失敗，請稍後再試。</p>';
             }).apiGetOpenJobMapSites(authToken, candidateRowId);
+        }
+
+        function toggleJobMapSites() {
+            var panel = document.getElementById('mJobMapPanel');
+            var icon = document.getElementById('jobMapToggleIcon');
+            var label = document.querySelector('#jobMapToggleLabel span');
+            var rowId = document.getElementById('mRowId').value;
+            if (!panel || !rowId) return;
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+                label.textContent = '收合推薦案場';
+                if (String(jobMapLoadedFor) !== String(rowId)) loadOpenJobMapSites(rowId); else renderOpenJobMapSites();
+            } else {
+                panel.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+                label.textContent = '查看推薦案場';
+            }
         }
 
         function setCandidateBranchCorrection(candidate) {
@@ -2937,8 +2965,8 @@
 
         function openJobRoute(index) {
             var site = openJobMapSites[index];
-            if (!site || !currentFullAddr || !site.location) return;
-            var url = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(currentFullAddr) + '&destination=' + encodeURIComponent(site.location);
+            if (!site || !site.community) return;
+            var url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(site.community);
             window.open(url, '_blank', 'noopener');
         }
 
@@ -2949,7 +2977,12 @@
             document.getElementById('mRowId').value = t.rowId; 
             currentFullAddr = t["通訊地址"] || ""; 
             setCandidateBranchCorrection(t);
-            loadOpenJobMapSites(t.rowId);
+            openJobMapSites = [];
+            jobMapLoadedFor = '';
+            document.getElementById('mJobMapPanel').classList.add('hidden');
+            document.getElementById('jobMapToggleIcon').style.transform = 'rotate(0deg)';
+            document.querySelector('#jobMapToggleLabel span').textContent = '查看推薦案場';
+            document.getElementById('mJobMapSites').innerHTML = '點選上方按鈕查看推薦案場。';
             document.getElementById('mName').innerText = t["姓名"] || "未填寫"; 
             loadCandidatePhoto(t.rowId, t["姓名"] || "未填寫");
             document.getElementById('mPos').value = t._position || t["應徵職位"] || ""; 
