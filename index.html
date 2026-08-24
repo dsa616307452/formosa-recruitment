@@ -744,6 +744,11 @@
                     <div class="flex items-center gap-2 mb-3"><i data-lucide="map-pinned" class="w-4 h-4 text-indigo-500"></i><p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">未結案案場路線</p></div>
                     <div id="mJobMapSites" class="space-y-2 text-xs text-slate-400">載入案場中...</div>
                 </div>
+                <div id="mBranchCorrection" class="hidden mt-4 bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                    <div class="flex items-center gap-2 mb-3"><i data-lucide="git-branch" class="w-4 h-4 text-indigo-600"></i><p class="text-[10px] font-black text-indigo-700 uppercase tracking-widest">管理員：更正應徵分部</p></div>
+                    <p class="text-[11px] font-bold text-indigo-700/70 mb-3">更正後會將完整履歷搬移至對應分部人才庫，案場推薦也會同步更新。</p>
+                    <div class="flex gap-2"><select id="mCandidateBranch" class="flex-1 bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs font-black text-slate-700 outline-none"></select><button type="button" onclick="updateCandidateBranch()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-black">更正</button></div>
+                </div>
             </div>
 
             <!-- 評估與面試結果 (核心) -->
@@ -2885,7 +2890,7 @@
             lucide.createIcons();
         }
 
-        function loadOpenJobMapSites() {
+        function loadOpenJobMapSites(candidateRowId) {
             var box = document.getElementById('mJobMapSites');
             if (box) box.innerHTML = '<p class="text-xs font-bold text-slate-400">載入案場中...</p>';
             google.script.run.withSuccessHandler(function(res) {
@@ -2897,7 +2902,37 @@
             }).withFailureHandler(function() {
                 openJobMapSites = [];
                 if (box) box.innerHTML = '<p class="text-xs font-bold text-rose-500">案場資料載入失敗，請稍後再試。</p>';
-            }).apiGetOpenJobMapSites(authToken);
+            }).apiGetOpenJobMapSites(authToken, candidateRowId);
+        }
+
+        function setCandidateBranchCorrection(candidate) {
+            var panel = document.getElementById('mBranchCorrection');
+            var select = document.getElementById('mCandidateBranch');
+            if (!panel || !select) return;
+            if (!currentUser || !currentUser.isAdmin) { panel.classList.add('hidden'); return; }
+            var branches = ['台中總部', '台中海線港區分部', '新北分部'];
+            select.innerHTML = branches.map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
+            select.value = candidate._branch || '台中總部';
+            panel.classList.remove('hidden');
+        }
+
+        function updateCandidateBranch() {
+            var rowId = document.getElementById('mRowId').value;
+            var targetBranch = document.getElementById('mCandidateBranch').value;
+            var candidate = db.find(function(item) { return String(item.rowId) === String(rowId); });
+            if (!candidate || !rowId || !targetBranch) return;
+            if (candidate._branch === targetBranch) { alert('目前已是「' + targetBranch + '」，不需要更正。'); return; }
+            if (!confirm('確定將「' + (candidate['姓名'] || '此履歷') + '」由「' + candidate._branch + '」搬移至「' + targetBranch + '」嗎？\n\n履歷、照片、追蹤與面試資料會一併保留。')) return;
+            google.script.run.withSuccessHandler(function(res) {
+                var result = typeof res === 'string' ? JSON.parse(res) : res;
+                if (!result || result.status !== 'success') { alert('更正失敗：' + ((result && result.message) || '未知錯誤')); return; }
+                alert('已更正為「' + targetBranch + '」。');
+                closeModal();
+                fetchData();
+                fetchJobs();
+            }).withFailureHandler(function(error) {
+                alert('更正失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
+            }).apiUpdateCandidateBranch(authToken, rowId, targetBranch);
         }
 
         function openJobRoute(index) {
@@ -2911,9 +2946,10 @@
             var t = db.find(function(x) { return x.rowId === rowId; }); 
             if (!t) return;
 
-            currentFullAddr = t["通訊地址"] || ""; 
-            loadOpenJobMapSites();
             document.getElementById('mRowId').value = t.rowId; 
+            currentFullAddr = t["通訊地址"] || ""; 
+            setCandidateBranchCorrection(t);
+            loadOpenJobMapSites(t.rowId);
             document.getElementById('mName').innerText = t["姓名"] || "未填寫"; 
             loadCandidatePhoto(t.rowId, t["姓名"] || "未填寫");
             document.getElementById('mPos').value = t._position || t["應徵職位"] || ""; 
@@ -3077,7 +3113,7 @@
             btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 寫入中...'; 
             
             var payload = { 
-                rowId: parseInt(document.getElementById('mRowId').value), 
+                rowId: document.getElementById('mRowId').value, 
                 interviewer: document.getElementById('mInterviewer').value, 
                 position: document.getElementById('mPos').value,
                 result: selectedResult, 
