@@ -230,7 +230,7 @@
                         <label class="form-label">應徵職位 Position</label>
                         <select id="cPos" class="form-input bg-white appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select>
                     </div>
-                    <div class="col-span-1"><label class="form-label">應徵分部</label><select id="cBranch" required class="form-input bg-white appearance-none"><option value="">請選擇分部</option><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
+                    <div class="col-span-1"><label class="form-label">應徵分部</label><select id="cBranch" required class="form-input bg-white appearance-none"><option value="">請選擇分部</option><option value="台中總部">台中總部</option><option value="台中海線港區分部">台中海線港區分部</option><option value="新北分部">新北分部</option></select></div>
                 </div>
                 <div><label class="form-label">希望待遇 Salary</label><input type="text" id="cExpectedSalary" class="form-input bg-white" placeholder="例: 35000"></div>
                 <div class="grid grid-cols-2 gap-4">
@@ -443,6 +443,7 @@
             
             <!-- View: Jobs -->
             <div id="view-jobs" class="hidden space-y-6"><div class="flex justify-between items-end"><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">職缺需求</h2><div class="flex gap-2 items-center"><label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="toggleClosedJobs" onchange="toggleShowClosed()" class="w-4 h-4 accent-slate-900 rounded"><span class="text-[10px] font-bold text-slate-400">顯示已結案</span></label><button onclick="openJobModal()" class="bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg shadow-slate-300"><i data-lucide="plus" class="w-3 h-3"></i> 新增</button></div></div>
+                <div id="jobsBranchList" class="flex flex-wrap gap-2"></div>
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
                     <div id="jobsManagerList" class="flex sm:flex-col gap-2 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 sm:w-56 sm:shrink-0"><p class="text-center text-slate-300 italic font-black text-xs py-6 w-full">載入中...</p></div>
                     <div id="jobsList" class="flex-1 space-y-4 pb-10 min-w-0"><p class="text-center text-slate-300 italic font-black text-sm py-10">載入中...</p></div>
@@ -919,7 +920,7 @@
         <form id="jd-edit-mode" onsubmit="updateJob(event)" class="hidden flex-1 overflow-y-auto px-6 py-8 space-y-4 bg-slate-50/50">
             <input type="hidden" id="jedRowId">
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">社區名稱</label><input type="text" id="jedCommunity" class="form-input"></div><div><label class="form-label">位置 (區域)</label><input type="text" id="jedLocation" class="form-input"></div></div>
-            <div><label class="form-label">所屬分部</label><select id="jedBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
+            <div><label class="form-label">所屬分部</label><select id="jedBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="台中海線港區分部">台中海線港區分部</option><option value="新北分部">新北分部</option></select></div>
             <div><label class="form-label">缺員編制</label><select id="jedPos" class="form-input appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select></div>
             <div><label class="form-label">上班時間</label><input type="text" id="jedTime" class="form-input"></div>
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">異動員工</label><input type="text" id="jedResigned" class="form-input"></div><div><label class="form-label">缺員原因</label><select id="jedReason" class="form-input appearance-none"><option value="員工離職">員工離職</option><option value="進場編制">進場編制</option><option value="加新編制">加新編制</option><option value="汰換員工">汰換員工</option><option value="人員異動">人員異動</option><option value="員工留任">員工留任</option></select></div></div>
@@ -945,7 +946,7 @@
         <div class="px-6 py-4 flex justify-between items-center border-b border-slate-50"><h3 class="text-xl font-[1000] italic text-slate-900">新增職缺需求</h3><button onclick="closeJobModal()" class="w-10 h-10 flex items-center justify-center text-slate-400 bg-slate-50 rounded-full"><i data-lucide="x" class="w-6 h-6"></i></button></div>
         <form id="jobForm" onsubmit="submitJob(event)" class="flex-1 overflow-y-auto px-6 py-8 space-y-4">
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">社區名稱</label><input type="text" id="jCommunity" required class="form-input" placeholder="名稱"></div><div><label class="form-label">位置 (區域)</label><input type="text" id="jLocation" required class="form-input" placeholder="例如: 大安區"></div></div>
-            <div><label class="form-label">所屬分部</label><select id="jBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="港區分部">港區分部</option><option value="新北分部">新北分部</option></select></div>
+            <div><label class="form-label">所屬分部</label><select id="jBranch" required class="form-input appearance-none"><option value="台中總部">台中總部</option><option value="台中海線港區分部">台中海線港區分部</option><option value="新北分部">新北分部</option></select></div>
             <div><label class="form-label">缺員編制</label><select id="jPos" class="form-input appearance-none"><option value="日班保全">日班保全</option><option value="機動日保">機動日保</option><option value="夜班保全">夜班保全</option><option value="機動夜保">機動夜保</option><option value="社區秘書">社區秘書</option><option value="機動秘書">機動秘書</option><option value="主任秘書">主任秘書</option><option value="吧檯秘書">吧檯秘書</option><option value="社區經理">社區經理</option><option value="副理">副理</option><option value="行政保全">行政保全</option><option value="其他">其他</option></select></div>
             <div><label class="form-label">上班時間</label><input type="text" id="jTime" class="form-input" placeholder="例如: 07:00-19:00"></div>
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">異動員工</label><input type="text" id="jResigned" class="form-input" placeholder="姓名"></div><div><label class="form-label">缺員原因</label><select id="jReason" class="form-input appearance-none"><option value="員工離職">員工離職</option><option value="進場編制">進場編制</option><option value="加新編制">加新編制</option><option value="汰換員工">汰換員工</option><option value="人員異動">人員異動</option><option value="員工留任">員工留任</option></select></div></div>
@@ -1722,7 +1723,7 @@
         function populateJobBranchSelect(id, selectedBranch) {
             var select = document.getElementById(id);
             if (!select) return;
-            var allowed = currentUser && currentUser.isAdmin ? ['台中總部', '港區分部', '新北分部'] : ((currentUser && currentUser.branches) || []);
+            var allowed = currentUser && currentUser.isAdmin ? ['台中總部', '台中海線港區分部', '新北分部'] : ((currentUser && currentUser.branches) || []);
             select.innerHTML = allowed.map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
             if (allowed.indexOf(selectedBranch) !== -1) select.value = selectedBranch;
         }
@@ -1921,6 +1922,26 @@
         }
 
         var selectedJobManager = '全部'; // '全部' 或某個主管姓名
+        var selectedJobBranch = '全部';
+
+        function selectJobBranch(branch) {
+            selectedJobBranch = branch;
+            selectedJobManager = '全部';
+            renderJobs();
+        }
+
+        function renderJobBranchList() {
+            var box = document.getElementById('jobsBranchList');
+            if (!box) return;
+            var branches = currentUser && currentUser.isAdmin ? ['全部', '台中總部', '台中海線港區分部', '新北分部'] : ((currentUser && currentUser.branches) || []);
+            if (!branches.length) { box.innerHTML = ''; return; }
+            if (branches.indexOf(selectedJobBranch) === -1) selectedJobBranch = branches[0];
+            box.innerHTML = branches.map(function(branch) {
+                var active = branch === selectedJobBranch;
+                var count = branch === '全部' ? allJobs.filter(function(j) { return j.systemClosed !== '結案'; }).length : allJobs.filter(function(j) { return j.branch === branch && j.systemClosed !== '結案'; }).length;
+                return "<button type='button' onclick='selectJobBranch(" + JSON.stringify(branch) + ")' class=\"px-4 py-2 rounded-xl text-xs font-black transition-colors " + (active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500') + "\">" + escapeHtml(branch) + '<span class="ml-2 text-[10px] opacity-80">' + count + '</span></button>';
+            }).join('');
+        }
 
         function selectJobManager(mgr) {
             selectedJobManager = mgr;
@@ -1928,7 +1949,8 @@
         }
 
         function renderJobs() {
-            var visibleJobs = allJobs.filter(function(j) { return showClosedJobs ? true : j.systemClosed !== '結案'; });
+            renderJobBranchList();
+            var visibleJobs = allJobs.filter(function(j) { return (selectedJobBranch === '全部' || j.branch === selectedJobBranch) && (showClosedJobs ? true : j.systemClosed !== '結案'); });
 
             var groupedJobs = {};
             visibleJobs.forEach(function(job) {
@@ -3309,7 +3331,7 @@
             var statBranchFilter = document.getElementById('statBranchFilter');
             if (statBranchFilter) {
                 if (user && user.isAdmin) {
-                    statBranchFilter.innerHTML = '<option value="全部">全部分部</option>' + ['台中總部', '港區分部', '新北分部'].map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
+                    statBranchFilter.innerHTML = '<option value="全部">全部分部</option>' + ['台中總部', '台中海線港區分部', '新北分部'].map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join('');
                     statBranchFilter.classList.remove('hidden');
                 } else statBranchFilter.classList.add('hidden');
             }
@@ -3358,7 +3380,7 @@
 
         function renderBranchCheckboxes(selectedBranches) {
             var selected = selectedBranches || [];
-            var branches = ['台中總部', '港區分部', '新北分部'];
+            var branches = ['台中總部', '台中海線港區分部', '新北分部'];
             document.getElementById('amBranchList').innerHTML = branches.map(function(branch) {
                 var checked = selected.indexOf(branch) !== -1 ? ' checked' : '';
                 return '<label class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl cursor-pointer"><input type="checkbox" class="am-branch-checkbox w-4 h-4 accent-slate-900" value="' + branch + '"' + checked + '><span class="text-xs font-black text-slate-700">' + branch + '</span></label>';
