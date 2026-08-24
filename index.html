@@ -994,6 +994,7 @@
                 <p id="candidatePhotoViewerTitle" class="font-black">應徵者照片</p>
                 <button type="button" onclick="closeCandidatePhotoViewer()" title="關閉" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
+            <p id="candidatePhotoViewerStatus" class="hidden text-sm font-bold text-slate-200">正在載入完整照片...</p>
             <img id="candidatePhotoViewerImage" class="max-w-full max-h-[70vh] object-contain rounded-2xl shadow-2xl" alt="應徵者照片預覽">
             <a id="candidatePhotoDownload" href="#" download class="inline-flex items-center gap-2 bg-white text-slate-900 px-5 py-3 rounded-xl font-black text-sm hover:bg-slate-100 active:scale-95"><i data-lucide="download" class="w-4 h-4"></i> 下載照片</a>
         </div>
@@ -1246,6 +1247,8 @@
         var pageSize = 20; 
         var currentFullAddr = ""; 
         var openJobMapSites = [];
+        var candidatePhotoThumbnailCache = {};
+        var candidatePhotoFullCache = {};
         var isSubmitting = false;
         var currentStatTab = 'interview'; 
         var currentCandidateStep = 1;
@@ -2787,10 +2790,14 @@
             document.getElementById('mPhotoDeleteBtn').classList.add('hidden');
         }
 
+        function photoDataUrl(photo) {
+            return photo && photo.base64 && photo.mimeType ? 'data:' + photo.mimeType + ';base64,' + photo.base64 : '';
+        }
+
         function showCandidatePhoto(photo) {
             if (!photo || !photo.base64 || !photo.mimeType) return false;
             var image = document.getElementById('mPhotoImage');
-            image.src = 'data:' + photo.mimeType + ';base64,' + photo.base64;
+            image.src = photoDataUrl(photo);
             image.classList.remove('hidden');
             document.getElementById('mPhotoInitials').classList.add('hidden');
             document.getElementById('mPhotoDeleteBtn').classList.remove('hidden');
@@ -2801,33 +2808,71 @@
             var image = document.getElementById('mPhotoImage');
             if (image.classList.contains('hidden') || !image.src) return;
             var name = String(document.getElementById('mName').innerText || '應徵者').replace(/[\\/:*?"<>|]/g, '_');
-            var mimeType = (image.src.match(/^data:([^;,]+)/) || [])[1] || 'image/jpeg';
-            var extension = mimeType === 'image/png' ? 'png' : (mimeType === 'image/webp' ? 'webp' : 'jpg');
-            document.getElementById('candidatePhotoViewerTitle').textContent = name + '｜面試照片';
-            document.getElementById('candidatePhotoViewerImage').src = image.src;
-            document.getElementById('candidatePhotoDownload').href = image.src;
-            document.getElementById('candidatePhotoDownload').download = name + '_面試照片.' + extension;
-            document.getElementById('candidatePhotoViewer').classList.remove('hidden');
+            var rowId = document.getElementById('mRowId').value;
+            if (!rowId) return;
+            var viewer = document.getElementById('candidatePhotoViewer');
+            var viewerImage = document.getElementById('candidatePhotoViewerImage');
+            var status = document.getElementById('candidatePhotoViewerStatus');
+            var download = document.getElementById('candidatePhotoDownload');
+            viewer.classList.remove('hidden');
+            viewerImage.removeAttribute('src');
+            download.classList.add('hidden');
+            status.classList.remove('hidden');
+            document.getElementById('candidatePhotoViewerTitle').textContent = name + '｜正在載入完整照片...';
             lucide.createIcons();
+            function showFullPhoto(photo) {
+                if (!photoDataUrl(photo)) return false;
+                var mimeType = photo.mimeType || 'image/jpeg';
+                var extension = mimeType === 'image/png' ? 'png' : (mimeType === 'image/webp' ? 'webp' : 'jpg');
+                viewerImage.src = photoDataUrl(photo);
+                download.href = viewerImage.src;
+                download.download = name + '_面試照片.' + extension;
+                download.classList.remove('hidden');
+                status.classList.add('hidden');
+                document.getElementById('candidatePhotoViewerTitle').textContent = name + '｜面試照片';
+                return true;
+            }
+            if (candidatePhotoFullCache[rowId] && showFullPhoto(candidatePhotoFullCache[rowId])) return;
+            google.script.run.withSuccessHandler(function(response) {
+                var result = typeof response === 'string' ? JSON.parse(response) : response;
+                if (String(document.getElementById('mRowId').value) !== String(rowId) || viewer.classList.contains('hidden')) return;
+                if (!result || result.status !== 'success' || !result.photo) {
+                    status.textContent = (result && result.message) || '完整照片載入失敗，請稍後再試。';
+                    viewerImage.src = image.src;
+                    return;
+                }
+                candidatePhotoFullCache[rowId] = result.photo;
+                if (!showFullPhoto(result.photo)) { status.textContent = '完整照片資料無法顯示。'; viewerImage.src = image.src; }
+            }).withFailureHandler(function() {
+                if (!viewer.classList.contains('hidden')) {
+                    status.textContent = '完整照片載入失敗，請稍後再試。';
+                    viewerImage.src = image.src;
+                }
+            }).apiGetCandidatePhoto(authToken, rowId);
         }
 
         function closeCandidatePhotoViewer() {
             var viewer = document.getElementById('candidatePhotoViewer');
             viewer.classList.add('hidden');
             document.getElementById('candidatePhotoViewerImage').removeAttribute('src');
+            document.getElementById('candidatePhotoViewerStatus').classList.add('hidden');
+            document.getElementById('candidatePhotoViewerStatus').textContent = '正在載入完整照片...';
+            document.getElementById('candidatePhotoDownload').classList.add('hidden');
         }
 
         function loadCandidatePhoto(rowId, name) {
             setCandidatePhotoFallback(name);
             if (!rowId || !authToken) return;
+            if (candidatePhotoThumbnailCache[rowId]) { showCandidatePhoto(candidatePhotoThumbnailCache[rowId]); return; }
             google.script.run.withSuccessHandler(function(response) {
                 if (String(document.getElementById('mRowId').value) !== String(rowId)) return;
                 var result = typeof response === 'string' ? JSON.parse(response) : response;
                 if (!result || result.status !== 'success') return;
+                if (result.photo) candidatePhotoThumbnailCache[rowId] = result.photo;
                 showCandidatePhoto(result.photo);
             }).withFailureHandler(function() {
                 // 照片讀取失敗時仍保留姓名縮寫，不中斷查看履歷。
-            }).apiGetCandidatePhoto(authToken, rowId);
+            }).apiGetCandidatePhotoThumbnail(authToken, rowId);
         }
 
         function handleCandidatePhotoInput(input) {
@@ -2846,6 +2891,8 @@
                     var result = typeof response === 'string' ? JSON.parse(response) : response;
                     input.value = '';
                     if (!result || result.status !== 'success') { alert('照片上傳失敗：' + ((result && result.message) || '未知錯誤')); return; }
+                    delete candidatePhotoThumbnailCache[rowId];
+                    delete candidatePhotoFullCache[rowId];
                     loadCandidatePhoto(rowId, document.getElementById('mName').innerText);
                 }).withFailureHandler(function(error) {
                     input.value = '';
@@ -2862,6 +2909,8 @@
             google.script.run.withSuccessHandler(function(response) {
                 var result = typeof response === 'string' ? JSON.parse(response) : response;
                 if (!result || result.status !== 'success') { alert('照片刪除失敗：' + ((result && result.message) || '未知錯誤')); return; }
+                delete candidatePhotoThumbnailCache[rowId];
+                delete candidatePhotoFullCache[rowId];
                 setCandidatePhotoFallback(document.getElementById('mName').innerText);
             }).withFailureHandler(function(error) {
                 alert('照片刪除失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
