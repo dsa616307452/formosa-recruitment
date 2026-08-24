@@ -653,6 +653,8 @@
                 </div>
             </div>
 
+            <div id="view-training" class="hidden space-y-5"><div class="flex justify-between items-end"><div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">職前訓練分數</h2><p class="text-xs font-bold text-slate-400 mt-1">依分部新增與填寫受訓成績</p></div><button onclick="openTrainingEditor()" class="bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl">新增學員</button></div><div class="flex gap-2"><input id="trainingSearch" oninput="renderTrainingRoster()" placeholder="搜尋姓名或案場" class="form-input flex-1"><select id="trainingBranchFilter" onchange="renderTrainingRoster()" class="form-input w-44"></select></div><div id="trainingRoster" class="space-y-3"></div></div>
+            <div id="training-editor" class="hidden fixed inset-0 z-[110] bg-black/40 p-4 overflow-y-auto"><div class="bg-white max-w-2xl mx-auto rounded-3xl p-6"><div class="flex justify-between items-center mb-5"><h3 id="trainingEditorTitle" class="text-xl font-black">職前訓練分數</h3><button onclick="closeTrainingEditor()">✕</button></div><div id="trainingEditorFields" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div><button onclick="saveTrainingEditor()" class="w-full mt-6 bg-slate-900 text-white font-black py-4 rounded-2xl">儲存</button></div></div>
             <div id="view-accounts" class="hidden space-y-5"><div class="flex justify-between items-end"><div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">帳號管理</h2><p class="text-xs font-bold text-slate-400 mt-1">建立、停用帳號、指派可用功能與查看登入次數</p></div><button onclick="openAccountModal()" class="bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl">新增帳號</button></div><div id="accountsList" class="space-y-3"><p class="text-center text-slate-300 py-10">載入中...</p></div></div>
 
             <!-- 新增／編輯帳號 Modal -->
@@ -3268,13 +3270,14 @@
             if (currentStaffTab === 'jobs') fetchJobs();
             else if (currentStaffTab === 'accounts') fetchAccounts();
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData();
+            else if (currentStaffTab === 'training') fetchTrainingRoster();
             else if (currentStaffTab === 'followups') fetchData();
             else fetchData();
         }
         
         function switchTab(tab) { 
             currentStaffTab = tab;
-            ['today', 'database', 'followups', 'stats', 'jobs', 'accounts'].forEach(function(t) { 
+            ['today', 'database', 'followups', 'stats', 'jobs', 'training', 'accounts'].forEach(function(t) { 
                 var view = document.getElementById('view-' + t); 
                 var btn = document.getElementById('btn-' + t); 
                 if (t === tab) { 
@@ -3287,6 +3290,7 @@
             }); 
             if(tab === 'jobs') fetchJobs();
             if(tab === 'accounts') fetchAccounts();
+            if(tab === 'training') fetchTrainingRoster();
             if(tab === 'followups') { renderFollowUps(); loadFollowUpReminderStatus(); }
         }
 
@@ -3294,7 +3298,7 @@
         var permissionDefs = []; // 從後端 CONFIG.PERMISSIONS 動態載入，之後加新功能不用改前端
         var accountModalMode = 'create'; // 'create' 或 'edit'
         var accountModalEditEmail = '';
-        var TAB_KEY_BY_PERMISSION = { today: 'today', jobs: 'jobs', talent: 'database', followups: 'followups', analytics: 'stats', accounts: 'accounts' };
+        var TAB_KEY_BY_PERMISSION = { today: 'today', jobs: 'jobs', talent: 'database', followups: 'followups', analytics: 'stats', training: 'training', accounts: 'accounts' };
 
         function loadPermissionDefs(callback) {
             if (permissionDefs.length > 0) { if (callback) callback(); return; }
@@ -3307,8 +3311,9 @@
 
         // 依登入者的權限，顯示/隱藏底部導覽列按鈕，並確保停在使用者看得到的頁籤
         function applyPermissionsToNav(user) {
+            if (!document.getElementById('btn-training')) { var nav = document.querySelector('#app-staff nav'); var btn = document.createElement('button'); btn.id = 'btn-training'; btn.className = 'hidden flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all'; btn.setAttribute('onclick', "switchTab('training')"); btn.innerHTML = '<i data-lucide="graduation-cap" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">訓練</span>'; nav.insertBefore(btn, document.getElementById('btn-accounts')); }
             var allowedKeys = (user && user.isAdmin) ? Object.keys(TAB_KEY_BY_PERMISSION) : (user && user.permissions) || [];
-            var permissionLabels = { today: '今日待辦', jobs: '職缺', talent: '人才庫', analytics: '分析', accounts: '帳號管理' };
+            var permissionLabels = { today: '今日待辦', jobs: '職缺', talent: '人才庫', analytics: '分析', training: '職前訓練分數', accounts: '帳號管理' };
             var firstTab = null;
             Object.keys(TAB_KEY_BY_PERMISSION).forEach(function(permKey) {
                 var tabKey = TAB_KEY_BY_PERMISSION[permKey];
@@ -3794,6 +3799,13 @@
                 }
             });
         }
+
+        var trainingRoster = [], trainingMeta = null, editingTrainingRow = null;
+        function fetchTrainingRoster() { google.script.run.withSuccessHandler(function(res) { var data = JSON.parse(res); if (data.status !== 'success') { alert(data.message || '載入失敗'); return; } trainingMeta = data; trainingRoster = data.rows || []; var sel = document.getElementById('trainingBranchFilter'); var branches = currentUser && currentUser.isAdmin ? ['全部'].concat(['台中總部','台中海線港區分部','新北分部']) : ((currentUser && currentUser.branches) || []); sel.innerHTML = branches.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join(''); renderTrainingRoster(); }).apiGetTrainingRoster(authToken); }
+        function renderTrainingRoster() { if (!trainingMeta) return; var search = (document.getElementById('trainingSearch').value || '').toLowerCase(), branch = document.getElementById('trainingBranchFilter').value; var rows = trainingRoster.filter(function(row){ return (branch === '全部' || row.branch === branch) && ((row['員工姓名'] || '').toLowerCase().indexOf(search) > -1 || (row['案場'] || '').toLowerCase().indexOf(search) > -1); }); document.getElementById('trainingRoster').innerHTML = rows.length ? rows.map(function(row){ return "<button type='button' onclick='openTrainingEditor("+JSON.stringify(row.rowId)+")' class=\"w-full text-left bg-white border border-slate-100 rounded-2xl p-4\"><div class=\"flex justify-between\"><b>"+escapeHtml(row['員工姓名']||'未填姓名')+"</b><span class=\"text-indigo-500 text-xs font-black\">"+escapeHtml(row.branch)+"</span></div><p class=\"text-xs text-slate-400 mt-1\">"+escapeHtml(row['案場']||'未填案場')+'・'+escapeHtml(row['狀態']||'')+"</p><p class=\"text-xs font-black mt-2\">總成績："+escapeHtml(row['總成績(自動計算)']||'尚未計算')+"</p></button>"; }).join('') : '<p class="text-center text-slate-300 py-10">尚無符合資料</p>'; }
+        function openTrainingEditor(rowId) { editingTrainingRow = rowId ? trainingRoster.filter(function(row){return row.rowId === rowId;})[0] : null; document.getElementById('trainingEditorTitle').textContent = editingTrainingRow ? '填寫職前訓練分數' : '新增受訓員工'; var headers = trainingMeta.basicHeaders.concat(trainingMeta.editableHeaders); document.getElementById('trainingEditorFields').innerHTML = headers.map(function(h){ var value = editingTrainingRow ? (editingTrainingRow[h] || '') : ''; var readOnly = ['第二個月獎金','第三個月獎金','天數','有無送10-1','完成受訓天數'].indexOf(h) > -1; return '<label class="text-xs font-black text-slate-600">'+escapeHtml(h)+'<input data-training-header="'+escapeHtml(h)+'" value="'+escapeHtml(value)+'" '+(readOnly?'readonly':'')+' class="form-input mt-1 '+(readOnly?'bg-slate-100':'')+'"></label>'; }).join(''); document.getElementById('training-editor').classList.remove('hidden'); }
+        function closeTrainingEditor(){ document.getElementById('training-editor').classList.add('hidden'); }
+        function saveTrainingEditor(){ var values = {}; document.querySelectorAll('[data-training-header]').forEach(function(el){values[el.getAttribute('data-training-header')] = el.value;}); var branch = editingTrainingRow ? editingTrainingRow.branch : document.getElementById('trainingBranchFilter').value; if (branch === '全部') { alert('請先選擇分部'); return; } google.script.run.withSuccessHandler(function(res){ var data=JSON.parse(res); if(data.status==='success'){closeTrainingEditor();fetchTrainingRoster();}else alert(data.message||'儲存失敗'); }).apiSaveTraining(authToken,{rowId:editingTrainingRow&&editingTrainingRow.rowId,branch:branch,values:values}); }
     </script>
 </body>
 </html>
