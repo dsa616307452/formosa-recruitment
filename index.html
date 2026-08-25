@@ -2048,7 +2048,7 @@
 
                 var statusClass = isClosed ? 'text-slate-400 bg-slate-100' : 'text-emerald-500 bg-emerald-50';
                 var noteSnippet = j.note ? '<div class="mt-2 text-[10px] text-slate-500 bg-white/50 border border-slate-200/50 p-2 rounded-lg truncate"><span class="font-bold mr-1">備註:</span>'+escapeHtml(j.note)+'</div>' : '';
-                var closeBtn = isClosed ? '' : '<button onclick="event.stopPropagation(); updateJobStatus('+j.rowId+')" class="text-[9px] font-black border border-slate-200 text-slate-400 px-3 py-1 rounded-full hover:bg-white hover:border-slate-300 transition-colors z-10 relative">結案</button>';
+                var closeBtn = isClosed ? '' : '<button onclick=\'event.stopPropagation(); updateJobStatus(' + JSON.stringify(String(j.rowId)) + ')\' class="text-[9px] font-black border border-slate-200 text-slate-400 px-3 py-1 rounded-full hover:bg-white hover:border-slate-300 transition-colors z-10 relative">結案</button>';
                 var urgentBadge = isUrgent && !isClosed ? '<span class="ml-2 text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded-md italic uppercase tracking-widest animate-pulse">URGENT</span>' : '';
                 var locationBadge = '<div class="mt-1.5 flex flex-wrap gap-1.5"><span class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-sm tracking-wide"><i data-lucide="map-pin" class="w-3 h-3"></i>' + escapeHtml(j.location || "未填寫區域") + '</span><span class="inline-flex items-center bg-indigo-50 text-indigo-600 text-[10px] font-black px-2.5 py-1 rounded-lg">' + escapeHtml(j.branch || '台中總部') + '</span></div>';
                 var mgrBadge = selectedJobManager === '全部' ? '<span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">' + escapeHtml(j.unitManager || '未指定主管') + '</span>' : '';
@@ -2073,7 +2073,7 @@
         }
 
         function toggleShowClosed() { showClosedJobs = document.getElementById('toggleClosedJobs').checked; renderJobs(); }
-        function updateJobStatus(rowId) { if (!confirm("確定要將此職缺標記為「已結案」嗎？\n這將會把它從目前列表中隱藏。")) return; google.script.run.withSuccessHandler(function(res) { var result = JSON.parse(res); if (result.status === 'success') { alert("系統已更新：案件已標記為結案"); fetchJobs(); } else if (String(result.message || '').indexOf('登入') > -1) { handleSessionExpired(result.message); } else { alert('結案失敗：' + (result.message || '未知錯誤')); } }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiCloseJob(authToken, rowId); }
+        function updateJobStatus(rowId) { if (!confirm("確定要將此職缺標記為「已結案」嗎？\n這將會把它從目前列表中隱藏。")) return; google.script.run.withSuccessHandler(function(res) { var result = typeof res === 'string' ? JSON.parse(res) : res; if (result && result.status === 'success') { allJobs.forEach(function(job) { if (String(job.rowId) === String(rowId)) job.systemClosed = '結案'; }); renderJobs(); fetchJobs(); } else if (String((result && result.message) || '').indexOf('登入') > -1) { handleSessionExpired(result.message); } else { alert('結案失敗：' + ((result && result.message) || '未知錯誤')); } }).withFailureHandler(function(err) { alert('系統連線錯誤：' + (err && err.message ? err.message : err)); }).apiCloseJob(authToken, String(rowId)); }
         
         function submitCandidate(e) { 
             if (e) e.preventDefault(); 
