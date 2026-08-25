@@ -654,7 +654,7 @@
             </div>
 
             <div id="view-training" class="hidden space-y-5"><div class="flex justify-between items-end"><div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">職前訓練分數</h2><p class="text-xs font-bold text-slate-400 mt-1">依分部新增與填寫受訓成績</p></div><button onclick="openTrainingEditor()" class="bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl">新增學員</button></div><div class="flex gap-2"><input id="trainingSearch" oninput="renderTrainingRoster()" placeholder="搜尋姓名或案場" class="form-input flex-1"><select id="trainingBranchFilter" onchange="renderTrainingRoster()" class="form-input w-44"></select></div><div id="trainingRoster" class="space-y-3"></div></div>
-            <div id="training-editor" class="hidden fixed inset-0 z-[110] bg-black/40 p-4 overflow-y-auto"><div class="bg-white max-w-2xl mx-auto rounded-3xl p-6"><div class="flex justify-between items-center mb-5"><h3 id="trainingEditorTitle" class="text-xl font-black">職前訓練分數</h3><button onclick="closeTrainingEditor()">✕</button></div><div id="trainingEditorFields" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div><button onclick="saveTrainingEditor()" class="w-full mt-6 bg-slate-900 text-white font-black py-4 rounded-2xl">儲存</button></div></div>
+            <div id="training-editor" class="hidden fixed inset-0 z-[110] bg-black/40 p-4 overflow-y-auto"><div class="bg-white max-w-2xl mx-auto rounded-3xl p-6"><div class="flex justify-between items-center mb-5"><h3 id="trainingEditorTitle" class="text-xl font-black">職前訓練分數</h3><button type="button" onclick="closeTrainingEditor()">✕</button></div><div id="trainingEditorFields" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div><button id="trainingSaveBtn" type="button" onclick="saveTrainingEditor()" class="w-full mt-6 bg-slate-900 text-white font-black py-4 rounded-2xl disabled:opacity-60">儲存</button></div></div>
             <div id="view-accounts" class="hidden space-y-5"><div class="flex justify-between items-end"><div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">帳號管理</h2><p class="text-xs font-bold text-slate-400 mt-1">建立、停用帳號、指派可用功能與查看登入次數</p></div><button onclick="openAccountModal()" class="bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl">新增帳號</button></div><div id="accountsList" class="space-y-3"><p class="text-center text-slate-300 py-10">載入中...</p></div></div>
 
             <!-- 新增／編輯帳號 Modal -->
@@ -1232,6 +1232,11 @@
         var authToken = '';
         var currentUser = null;
         var db = []; 
+        var talentPageRows = [];
+        var talentPageTotal = 0;
+        var talentPageJobs = [];
+        var todayCandidates = [];
+        var candidateDetailCache = {};
         var allJobs = []; 
         var trainingDB = []; 
         var showClosedJobs = false; 
@@ -1493,7 +1498,7 @@
             
             if (result === '錄取') {
                 container.classList.remove('hidden');
-                var currentCandidate = db.find(function(item) { return String(item.rowId) === String(document.getElementById('mRowId').value); });
+                var currentCandidate = candidateDetailCache[document.getElementById('mRowId').value] || db.find(function(item) { return String(item.rowId) === String(document.getElementById('mRowId').value); });
                 var activeJobs = allJobs.filter(function(j) { return j.systemClosed !== '結案' && (!currentCandidate || j.branch === currentCandidate._branch); });
                 
                 select.innerHTML = '<option value="">(不指定案場，僅標示錄取)</option>';
@@ -2225,9 +2230,7 @@
                     applyPermissionsToNav(currentUser);
                     addCurrentUserToComboOptions();
                     initFilterCitySelector();
-                    var permissions = (currentUser && currentUser.permissions) || [];
-                    if (currentUser && (currentUser.isAdmin || permissions.some(function(k) { return ['today', 'talent', 'analytics'].indexOf(k) > -1; }))) fetchData();
-                    if (currentUser && (currentUser.isAdmin || permissions.indexOf('jobs') > -1)) fetchJobs();
+                    // 首個可用頁籤會由 applyPermissionsToNav 載入所需資料，避免登入時重複同步。
                 } else { 
                     alert(result.message || "密碼錯誤，請重新輸入"); 
                     document.getElementById('loginPass').value = ''; 
@@ -2270,7 +2273,6 @@
                         db = []; 
                         updateUI(); 
                         icon.classList.remove('animate-spin'); 
-                        fetchTrainingData(); 
                         return; 
                     } 
                     db = rawData.map(function(item) { 
@@ -2290,13 +2292,54 @@
                     db.sort(function(a, b) { var tA = a["時間戳記"] || ""; var tB = b["時間戳記"] || ""; return tB.localeCompare(tA); }); 
                     status.innerText = "最後同步: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); 
                     updateUI(); 
-                    fetchTrainingData();
                 } catch(e) { 
                     console.error(e); 
                     status.innerText = "資料解析失敗"; 
                 } 
                 icon.classList.remove('animate-spin'); 
             }).apiGetData(authToken); 
+        }
+
+        function getTalentFilters(page) {
+            return {
+                page: page || currentPage,
+                pageSize: pageSize,
+                search: document.getElementById('dbSearch').value,
+                job: document.getElementById('fJob').value,
+                city: document.getElementById('fCity').value,
+                district: document.getElementById('fDistrict').value,
+                result: document.getElementById('fResult').value,
+                level: document.getElementById('fLevel').value
+            };
+        }
+
+        function fetchTalentPage(page) {
+            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            google.script.run.withSuccessHandler(function(res) {
+                var data;
+                try { data = JSON.parse(res); } catch (e) { return; }
+                if (!data || data.status !== 'success') { if (data && data.message) alert(data.message); return; }
+                talentPageRows = data.rows || [];
+                talentPageTotal = Number(data.total || 0);
+                talentPageJobs = data.jobs || [];
+                currentPage = Number(data.page || 1);
+                var jobSelect = document.getElementById('fJob');
+                var previousJob = jobSelect.value || '全部';
+                jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
+                jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
+                renderDB();
+            }).withFailureHandler(function(err) { console.error('人才庫載入失敗', err); }).apiGetTalentPage(authToken, getTalentFilters(page));
+        }
+
+        function fetchTodayCandidates() {
+            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('today') === -1 && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            google.script.run.withSuccessHandler(function(res) {
+                var data;
+                try { data = JSON.parse(res); } catch (e) { return; }
+                if (!data || data.status !== 'success') { if (data && String(data.message || '').indexOf('登入') > -1) handleSessionExpired(data.message); return; }
+                todayCandidates = data.rows || [];
+                renderToday();
+            }).withFailureHandler(function(err) { console.error('今日待辦載入失敗', err); }).apiGetTodayCandidates(authToken);
         }
         
         function updateUI() { 
@@ -2322,10 +2365,10 @@
                 }
             }
 
-            document.getElementById('fJob').innerHTML = '<option value="全部">所有職務</option>' + distinctJobs.map(function(j){ return '<option value="'+escapeHtml(j)+'">'+escapeHtml(j)+'</option>'; }).join(''); 
+            if (currentStaffTab !== 'database') document.getElementById('fJob').innerHTML = '<option value="全部">所有職務</option>' + distinctJobs.map(function(j){ return '<option value="'+escapeHtml(j)+'">'+escapeHtml(j)+'</option>'; }).join(''); 
             
             handleStatFilterChange(); 
-            resetAndRenderDB(); 
+            if (currentStaffTab === 'database') fetchTalentPage(currentPage); 
             renderFollowUps();
             lucide.createIcons(); 
         }
@@ -2567,8 +2610,8 @@
             });
         }
         
-        function resetAndRenderDB() { currentPage = 1; renderDB(); }
-        function changePage(delta) { currentPage += delta; renderDB(); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
+        function resetAndRenderDB() { currentPage = 1; fetchTalentPage(currentPage); }
+        function changePage(delta) { fetchTalentPage(currentPage + delta); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
         
         function clearAllFilters() {
             document.getElementById('dbSearch').value = '';
@@ -2608,17 +2651,15 @@
 
         // --- 人才資料庫名冊一鍵匯出 CSV（支援 Excel UTF-8）---
         function exportDBtoCSV() {
-            var filtered = getFilteredCandidates();
-
-            if (filtered.length === 0) {
-                alert("目前篩選條件下無可匯出的資料！");
-                return;
-            }
-
-            var headers = ["姓名", "應徵職位", "電話", "通訊地址", "年齡", "性別", "面試官", "面試結果", "潛力等級", "備註", "登記時間"];
-            var rows = [headers];
-
-            filtered.forEach(function(t) {
+            google.script.run.withSuccessHandler(function(res) {
+                var data;
+                try { data = JSON.parse(res); } catch (e) { alert('匯出資料解析失敗'); return; }
+                if (!data || data.status !== 'success') { alert((data && data.message) || '匯出失敗'); return; }
+                var filtered = data.rows || [];
+                if (filtered.length === 0) { alert("目前篩選條件下無可匯出的資料！"); return; }
+                var headers = ["姓名", "應徵職位", "電話", "通訊地址", "年齡", "性別", "面試官", "面試結果", "潛力等級", "備註", "登記時間"];
+                var rows = [headers];
+                filtered.forEach(function(t) {
                 rows.push([
                     t["姓名"] || "",
                     t._position || t["應徵職位"] || "",
@@ -2632,40 +2673,37 @@
                     (t["備註"] || "").replace(/[\r\n]+/g, " "),
                     t["時間戳記"] || ""
                 ]);
-            });
-
-            var csvContent = "\uFEFF" + rows.map(function(row) {
+                });
+                var csvContent = "\uFEFF" + rows.map(function(row) {
                 return row.map(function(val) {
                     var str = String(val || "").replace(/"/g, '""');
                     return '"' + str + '"';
                 }).join(",");
             }).join("\r\n");
 
-            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            var url = URL.createObjectURL(blob);
-            var link = document.createElement("a");
-            link.setAttribute("href", url);
-            var dateStr = new Date().toISOString().slice(0, 10);
-            link.setAttribute("download", "Formosa_人才庫名冊_" + dateStr + ".csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+                var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                var url = URL.createObjectURL(blob);
+                var link = document.createElement("a");
+                link.setAttribute("href", url);
+                var dateStr = new Date().toISOString().slice(0, 10);
+                link.setAttribute("download", "Formosa_人才庫名冊_" + dateStr + ".csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiGetTalentExport(authToken, getTalentFilters(1));
         }
 
         function renderDB() { 
-            var filtered = getFilteredCandidates();
-            
-            document.getElementById('dbResultCount').innerText = '共 ' + filtered.length + ' 位符合條件';
-
-            var totalPages = Math.ceil(filtered.length / pageSize) || 1; 
+            var pagedData = talentPageRows;
+            document.getElementById('dbResultCount').innerText = '共 ' + talentPageTotal + ' 位符合條件';
+            var totalPages = Math.ceil(talentPageTotal / pageSize) || 1; 
             if(currentPage > totalPages) currentPage = totalPages; 
             if(currentPage < 1) currentPage = 1; 
             
             document.getElementById('pageInfo').innerText = 'PAGE ' + currentPage + ' / ' + totalPages; 
             document.getElementById('prevBtn').disabled = currentPage === 1; 
             document.getElementById('nextBtn').disabled = currentPage === totalPages; 
-            
-            var pagedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize); 
             
             if (pagedData.length === 0) {
                 document.getElementById('dbList').innerHTML = '<div class="py-16 text-center border-2 border-dashed border-slate-100 rounded-3xl text-slate-300 italic font-black text-xs">查無符合條件的人才資料</div>';
@@ -2714,12 +2752,7 @@
             var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'); 
             document.getElementById('currentDateDisplay').innerText = todayStr; 
             
-            var entries = db.filter(function(x) { 
-                if (!x["時間戳記"]) return false; 
-                var dStr = x["時間戳記"].toString(); 
-                var res = x._result || x["面試結果"];
-                return dStr.indexOf(todayStr) === 0 && (res === "尚未面試" || !res); 
-            }); 
+            var entries = todayCandidates; 
             
             document.getElementById('todayGrid').innerHTML = entries.length === 0 
                 ? '<div class="py-20 text-center border-2 border-dashed border-slate-100 rounded-[40px] text-slate-300 italic font-black text-sm">今日尚無待面試人員</div>' 
@@ -2947,7 +2980,7 @@
         function updateCandidateBranch() {
             var rowId = document.getElementById('mRowId').value;
             var targetBranch = document.getElementById('mCandidateBranch').value;
-            var candidate = db.find(function(item) { return String(item.rowId) === String(rowId); });
+            var candidate = candidateDetailCache[rowId] || db.find(function(item) { return String(item.rowId) === String(rowId); });
             if (!candidate || !rowId || !targetBranch) return;
             if (candidate._branch === targetBranch) { alert('目前已是「' + targetBranch + '」，不需要更正。'); return; }
             if (!confirm('確定將「' + (candidate['姓名'] || '此履歷') + '」由「' + candidate._branch + '」搬移至「' + targetBranch + '」嗎？\n\n履歷、照片、追蹤與面試資料會一併保留。')) return;
@@ -2956,7 +2989,9 @@
                 if (!result || result.status !== 'success') { alert('更正失敗：' + ((result && result.message) || '未知錯誤')); return; }
                 alert('已更正為「' + targetBranch + '」。');
                 closeModal();
-                fetchData();
+                candidateDetailCache = {};
+                fetchTodayCandidates();
+                fetchTalentPage(currentPage);
                 fetchJobs();
             }).withFailureHandler(function(error) {
                 alert('更正失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
@@ -2971,8 +3006,17 @@
         }
 
         function openModal(rowId) { 
-            var t = db.find(function(x) { return x.rowId === rowId; }); 
-            if (!t) return;
+            var t = candidateDetailCache[rowId] || db.find(function(x) { return x.rowId === rowId; });
+            if (!t) {
+                google.script.run.withSuccessHandler(function(res) {
+                    var data;
+                    try { data = JSON.parse(res); } catch (e) { alert('履歷資料解析失敗'); return; }
+                    if (!data || data.status !== 'success') { alert((data && data.message) || '讀取履歷失敗'); return; }
+                    candidateDetailCache[rowId] = data.item;
+                    openModal(rowId);
+                }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiGetCandidateDetail(authToken, rowId);
+                return;
+            }
 
             document.getElementById('mRowId').value = t.rowId; 
             currentFullAddr = t["通訊地址"] || ""; 
@@ -3134,6 +3178,56 @@
             }).apiGenerateResume(authToken, rowId);
         }
 
+        function candidateMatchesCurrentTalentFilters(candidate) {
+            var search = (document.getElementById('dbSearch').value || '').toLowerCase();
+            var job = document.getElementById('fJob').value;
+            var city = document.getElementById('fCity').value;
+            var district = document.getElementById('fDistrict').value;
+            var result = document.getElementById('fResult').value;
+            var level = document.getElementById('fLevel').value;
+            var address = String(candidate['通訊地址'] || '');
+            var searchable = [candidate['姓名'], candidate['電話'], address].join(' ').toLowerCase();
+            if (search && searchable.indexOf(search) === -1) return false;
+            if (job !== '全部' && candidate._position !== job) return false;
+            if (city !== '全部' && address.indexOf(city) === -1) return false;
+            if (district !== '全部' && address.indexOf(district) === -1) return false;
+            if (result !== '全部' && candidate._result !== result) return false;
+            if (level !== '全部' && String(candidate['潛力等級'] || '').indexOf(level.substring(0, 1)) !== 0) return false;
+            return true;
+        }
+
+        function updateSavedCandidateInLists(candidate) {
+            if (!candidate || !candidate.rowId) return;
+            delete candidateDetailCache[candidate.rowId];
+
+            var pageIndex = talentPageRows.findIndex(function(item) { return String(item.rowId) === String(candidate.rowId); });
+            if (pageIndex !== -1) {
+                if (candidateMatchesCurrentTalentFilters(candidate)) talentPageRows[pageIndex] = candidate;
+                else {
+                    talentPageRows.splice(pageIndex, 1);
+                    talentPageTotal = Math.max(0, talentPageTotal - 1);
+                }
+                renderDB();
+            }
+
+            var today = new Date();
+            var todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+            var isTodayPending = String(candidate._timestamp || candidate['時間戳記'] || '').indexOf(todayKey) === 0 && (!candidate._result || candidate._result === '尚未面試');
+            var todayIndex = todayCandidates.findIndex(function(item) { return String(item.rowId) === String(candidate.rowId); });
+            if (todayIndex !== -1 && !isTodayPending) todayCandidates.splice(todayIndex, 1);
+            else if (todayIndex !== -1) todayCandidates[todayIndex] = candidate;
+            else if (isTodayPending) todayCandidates.unshift(candidate);
+            renderToday();
+        }
+
+        function updateSavedJobInList(job) {
+            if (!job || !job.rowId) return;
+            var index = allJobs.findIndex(function(item) { return String(item.rowId) === String(job.rowId); });
+            if (index === -1) allJobs.unshift(job);
+            else allJobs[index] = job;
+            if (currentStaffTab === 'jobs') renderJobs();
+        }
+
         function saveData() { 
             var selectedResult = document.getElementById('mResult').value;
             if (selectedResult === '追蹤') {
@@ -3211,11 +3305,11 @@
                     btn.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> 更新成功'; 
                     setTimeout(function() { 
                         closeModal(); 
-                        fetchData(); 
-                        fetchJobs(); 
+                        updateSavedCandidateInLists(result.candidate);
+                        updateSavedJobInList(result.job);
                         btn.disabled = false; 
                         btn.innerHTML = originalText; 
-                    }, 800); 
+                    }, 350); 
                 } else if (String(result.message || '').indexOf('登入') > -1) {
                     handleSessionExpired(result.message);
                     btn.disabled = false;
@@ -3238,7 +3332,9 @@
                 var result = JSON.parse(res);
                 if (result.status === 'success') {
                     document.getElementById('mBlacklistBox').classList.add('hidden');
-                    fetchData();
+                    candidateDetailCache = {};
+                    fetchTalentPage(currentPage);
+                    fetchTodayCandidates();
                 } else if (String(result.message || '').indexOf('登入') > -1) {
                     handleSessionExpired(result.message);
                 } else {
@@ -3341,7 +3437,8 @@
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData();
             else if (currentStaffTab === 'training') fetchTrainingRoster();
             else if (currentStaffTab === 'followups') fetchData();
-            else fetchData();
+            else if (currentStaffTab === 'database') fetchTalentPage(currentPage);
+            else fetchTodayCandidates();
         }
         
         function switchTab(tab) { 
@@ -3357,10 +3454,13 @@
                     btn.classList.remove('tab-active'); 
                 } 
             }); 
+            if(tab === 'today') fetchTodayCandidates();
+            if(tab === 'database') fetchTalentPage(1);
             if(tab === 'jobs') fetchJobs();
             if(tab === 'accounts') fetchAccounts();
             if(tab === 'training') fetchTrainingRoster();
-            if(tab === 'followups') { renderFollowUps(); loadFollowUpReminderStatus(); }
+            if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else fetchData(); }
+            if(tab === 'followups') { fetchData(); loadFollowUpReminderStatus(); }
         }
 
         // --- 帳號權限系統 ---
@@ -3565,8 +3665,8 @@
                 btnInt.className = inactiveClass;
                 divTra.classList.remove('hidden');
                 divInt.classList.add('hidden');
-                renderTrainingMonthOptions(); 
-                renderTrainingStats(); 
+                if (trainingDB.length) { renderTrainingMonthOptions(); renderTrainingStats(); }
+                else fetchTrainingData();
             }
             lucide.createIcons();
         }
@@ -3869,12 +3969,40 @@
             });
         }
 
-        var trainingRoster = [], trainingMeta = null, editingTrainingRow = null;
+        var trainingRoster = [], trainingMeta = null, editingTrainingRow = null, trainingSaving = false;
         function fetchTrainingRoster() { google.script.run.withSuccessHandler(function(res) { var data = JSON.parse(res); if (data.status !== 'success') { alert(data.message || '載入失敗'); return; } trainingMeta = data; trainingRoster = data.rows || []; var sel = document.getElementById('trainingBranchFilter'); var branches = currentUser && currentUser.isAdmin ? ['全部'].concat(['台中總部','台中海線港區分部','新北分部']) : ((currentUser && currentUser.branches) || []); sel.innerHTML = branches.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join(''); renderTrainingRoster(); }).apiGetTrainingRoster(authToken); }
         function renderTrainingRoster() { if (!trainingMeta) return; var search = (document.getElementById('trainingSearch').value || '').toLowerCase(), branch = document.getElementById('trainingBranchFilter').value; var rows = trainingRoster.filter(function(row){ return (branch === '全部' || row.branch === branch) && ((row['員工姓名'] || '').toLowerCase().indexOf(search) > -1 || (row['案場'] || '').toLowerCase().indexOf(search) > -1); }); document.getElementById('trainingRoster').innerHTML = rows.length ? rows.map(function(row){ return "<button type='button' onclick='openTrainingEditor("+JSON.stringify(row.rowId)+")' class=\"w-full text-left bg-white border border-slate-100 rounded-2xl p-4\"><div class=\"flex justify-between\"><b>"+escapeHtml(row['員工姓名']||'未填姓名')+"</b><span class=\"text-indigo-500 text-xs font-black\">"+escapeHtml(row.branch)+"</span></div><p class=\"text-xs text-slate-400 mt-1\">"+escapeHtml(row['案場']||'未填案場')+'・'+escapeHtml(row['狀態']||'')+"</p><p class=\"text-xs font-black mt-2\">總成績："+escapeHtml(row['總成績(自動計算)']||'尚未計算')+"</p></button>"; }).join('') : '<p class="text-center text-slate-300 py-10">尚無符合資料</p>'; }
         function openTrainingEditor(rowId) { editingTrainingRow = rowId ? trainingRoster.filter(function(row){return row.rowId === rowId;})[0] : null; document.getElementById('trainingEditorTitle').textContent = editingTrainingRow ? '填寫職前訓練分數' : '新增受訓員工'; function fields(headers, readOnly) { return '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' + headers.map(function(h){ var value = editingTrainingRow ? (editingTrainingRow[h] || '') : ''; return '<label class="text-xs font-black text-slate-600">'+escapeHtml(h)+'<input data-training-header="'+escapeHtml(h)+'" value="'+escapeHtml(value)+'" '+(readOnly?'readonly':'')+' class="form-input mt-1 '+(readOnly?'bg-slate-100':'')+'"></label>'; }).join('') + '</div>'; } var numberHtml = editingTrainingRow ? '<p class="text-xs font-black text-slate-400 mb-4">編號：' + escapeHtml(editingTrainingRow['編號'] || '') + '</p>' : ''; document.getElementById('trainingEditorFields').innerHTML = numberHtml + '<section class="sm:col-span-2"><h4 class="font-black text-slate-900 mb-3">受訓基本資料</h4>' + fields(trainingMeta.basicHeaders, false) + '</section><section class="sm:col-span-2 border-t pt-5"><h4 class="font-black text-indigo-600 mb-3">訓練評分</h4>' + fields(trainingMeta.editableHeaders.filter(function(h){return h !== '評語' && h !== '備註';}), false) + '</section><section class="sm:col-span-2 border-t pt-5"><h4 class="font-black text-slate-900 mb-3">評語與備註</h4>' + fields(['評語','備註'], false) + '<div class="mt-4"><p class="text-xs font-black text-indigo-600 mb-2">受訓與獎金資料</p>' + fields(trainingMeta.detailHeaders || [], false) + '</div></section>'; document.getElementById('training-editor').classList.remove('hidden'); }
-        function closeTrainingEditor(){ document.getElementById('training-editor').classList.add('hidden'); }
-        function saveTrainingEditor(){ var values = {}; document.querySelectorAll('[data-training-header]').forEach(function(el){values[el.getAttribute('data-training-header')] = el.value;}); var branch = editingTrainingRow ? editingTrainingRow.branch : document.getElementById('trainingBranchFilter').value; if (branch === '全部') { alert('請先選擇分部'); return; } google.script.run.withSuccessHandler(function(res){ var data=JSON.parse(res); if(data.status==='success'){closeTrainingEditor();fetchTrainingRoster();}else alert(data.message||'儲存失敗'); }).apiSaveTraining(authToken,{rowId:editingTrainingRow&&editingTrainingRow.rowId,branch:branch,values:values}); }
+        function closeTrainingEditor(){ if (trainingSaving) return; document.getElementById('training-editor').classList.add('hidden'); }
+        function saveTrainingEditor(){
+            if (trainingSaving) return;
+            var values = {};
+            document.querySelectorAll('[data-training-header]').forEach(function(el){ values[el.getAttribute('data-training-header')] = el.value; });
+            var branch = editingTrainingRow ? editingTrainingRow.branch : document.getElementById('trainingBranchFilter').value;
+            if (branch === '全部') { alert('請先選擇分部'); return; }
+            var btn = document.getElementById('trainingSaveBtn');
+            var originalText = btn.innerHTML;
+            trainingSaving = true;
+            btn.disabled = true;
+            btn.textContent = '儲存中…';
+            google.script.run.withSuccessHandler(function(res){
+                var data;
+                try { data = JSON.parse(res); } catch (e) { data = { status: 'error', message: '回應資料格式錯誤' }; }
+                trainingSaving = false;
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                if(data.status === 'success') {
+                    closeTrainingEditor();
+                    fetchTrainingRoster();
+                    if (data.duplicate) alert('相同的受訓資料已存在，系統未重複新增。');
+                } else alert(data.message || '儲存失敗');
+            }).withFailureHandler(function(err){
+                trainingSaving = false;
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                alert('系統連線錯誤：' + err);
+            }).apiSaveTraining(authToken,{rowId:editingTrainingRow && editingTrainingRow.rowId,branch:branch,values:values});
+        }
     </script>
 </body>
 </html>
