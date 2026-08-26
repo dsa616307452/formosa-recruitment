@@ -1110,6 +1110,30 @@
         window.google = google;
         // ==========================================================
 
+        // Sentry 是選用的錯誤追蹤。建立專案後把 DSN 放入此處；空白時完全不載入。
+        // DSN 可公開，但不得放入任何個資、登入 token 或 Sentry Auth Token。
+        var SENTRY_DSN = '';
+        if (SENTRY_DSN) {
+            var sentryScript = document.createElement('script');
+            sentryScript.src = 'https://browser.sentry-cdn.com/8.55.0/bundle.tracing.replay.min.js';
+            sentryScript.crossOrigin = 'anonymous';
+            sentryScript.onload = function() {
+                if (!window.Sentry) return;
+                window.Sentry.init({
+                    dsn: SENTRY_DSN,
+                    sendDefaultPii: false,
+                    tracesSampleRate: 0.05,
+                    beforeSend: function(event) {
+                        // 招募系統含高度敏感個資；只留下錯誤分類，不傳送頁面內容或使用者資訊。
+                        delete event.user;
+                        if (event.request) { delete event.request.data; delete event.request.cookies; delete event.request.headers; }
+                        return event;
+                    }
+                });
+            };
+            document.head.appendChild(sentryScript);
+        }
+
         // --- 全域 HTML 轉義消毒防禦函式 (XSS Protection) ---
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -3948,9 +3972,10 @@
                 if (!Array.isArray(accounts)) { if (accounts && accounts.message) alert(accounts.message); return; }
                 var list = document.getElementById('accountsList');
                 list.innerHTML = accounts.map(function(a) {
+                    var emailAttr = escapeHtml(a.email);
                     var actions = a.status === '待核准' ?
-                        '<button onclick="openAccountModal(' + "'" + escapeHtml(a.email) + "'" + ')" class="text-indigo-600">核准並指派功能</button><button onclick="updateAccount(\'' + escapeHtml(a.email) + '\',\'已拒絕\')" class="text-rose-500">拒絕</button>' :
-                        '<button onclick="updateAccount(\'' + escapeHtml(a.email) + '\',\'' + (a.status === '已停用' ? '已核准' : '已停用') + '\')" class="text-slate-500">' + (a.status === '已停用' ? '啟用' : '停用') + '</button><button onclick="openAccountModal(\'' + escapeHtml(a.email) + '\')" class="text-indigo-600">編輯權限</button>';
+                        '<button type="button" data-account-action="edit" data-account-email="' + emailAttr + '" class="text-indigo-600">核准並指派功能</button><button type="button" data-account-action="status" data-account-status="已拒絕" data-account-email="' + emailAttr + '" class="text-rose-500">拒絕</button>' :
+                        '<button type="button" data-account-action="status" data-account-status="' + (a.status === '已停用' ? '已核准' : '已停用') + '" data-account-email="' + emailAttr + '" class="text-slate-500">' + (a.status === '已停用' ? '啟用' : '停用') + '</button><button type="button" data-account-action="edit" data-account-email="' + emailAttr + '" class="text-indigo-600">編輯權限</button>';
                     var permLabels = (a.permissions || []).map(function(k) {
                         var def = permissionDefs.filter(function(p) { return p.key === k; })[0];
                         return def ? def.label : k;
@@ -3962,9 +3987,19 @@
                     var lockUntil = a.lockUntil ? new Date(a.lockUntil) : null;
                     var isLocked = lockUntil && !isNaN(lockUntil.getTime()) && lockUntil.getTime() > Date.now();
                     var lockHtml = isLocked ? '<p class="text-[10px] font-black text-rose-500 mt-2">暫時鎖定至 ' + escapeHtml(lockUntil.toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' })) + '</p>' : (Number(a.failedLoginCount || 0) ? '<p class="text-[10px] font-bold text-amber-600 mt-2">連續登入失敗 ' + escapeHtml(a.failedLoginCount) + ' 次</p>' : '');
-                    var unlockAction = isLocked ? '<button onclick="unlockAccount(\'' + escapeHtml(a.email) + '\')" class="text-rose-500">解除鎖定</button>' : '';
-                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + escapeHtml(a.email) + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div>' + branchHtml + '<p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p>' + lockHtml + '<div class="flex flex-wrap gap-4 mt-3 text-xs font-black">' + actions + '<button onclick="resetAccountPassword(\'' + escapeHtml(a.email) + '\')" class="text-slate-400">重設密碼</button>' + unlockAction + '</div></div>';
+                    var unlockAction = isLocked ? '<button type="button" data-account-action="unlock" data-account-email="' + emailAttr + '" class="text-rose-500">解除鎖定</button>' : '';
+                    return '<div class="stat-card"><div class="flex justify-between gap-3"><div><p class="font-black text-slate-900">' + escapeHtml(a.name) + '</p><p class="text-xs text-slate-400">' + emailAttr + '</p></div><span class="text-[10px] font-black">' + escapeHtml(a.status) + '</span></div><div class="flex flex-wrap gap-1.5 mt-2">' + permHtml + '</div>' + branchHtml + '<p class="text-[10px] text-slate-400 mt-3">登入 ' + escapeHtml(a.loginCount) + ' 次　最後登入：' + escapeHtml(a.lastLoginAt || '尚未登入') + '</p>' + lockHtml + '<div class="flex flex-wrap gap-4 mt-3 text-xs font-black">' + actions + '<button type="button" data-account-action="reset-password" data-account-email="' + emailAttr + '" class="text-slate-400">重設密碼</button>' + unlockAction + '</div></div>';
                 }).join('') || '<p class="text-center text-slate-300 py-10">尚無帳號申請</p>';
+                list.onclick = function(event) {
+                    var button = event.target.closest('[data-account-action]');
+                    if (!button || !list.contains(button)) return;
+                    var email = button.getAttribute('data-account-email');
+                    var action = button.getAttribute('data-account-action');
+                    if (action === 'edit') openAccountModal(email);
+                    else if (action === 'status') updateAccount(email, button.getAttribute('data-account-status'));
+                    else if (action === 'reset-password') resetAccountPassword(email);
+                    else if (action === 'unlock') unlockAccount(email);
+                };
             }).apiGetAccounts(authToken);
         }
         function updateAccount(email, status) { google.script.run.withSuccessHandler(function(res) { var result = JSON.parse(res); if (result.status === 'success') fetchAccounts(); else alert(result.message); }).apiUpdateAccount(authToken, { email: email, status: status }); }
