@@ -3808,18 +3808,28 @@
         }
 
         function loadFollowUpReminderStatus() {
+            var statusEl = document.getElementById('followUpReminderStatus');
+            if (!statusEl || !authToken) return;
+            statusEl.textContent = '每日提醒讀取中';
             google.script.run.withSuccessHandler(function(res) {
-                var result = JSON.parse(res);
-                if (result.status === 'success') document.getElementById('followUpReminderStatus').textContent = result.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用';
+                var result;
+                try { result = typeof res === 'string' ? JSON.parse(res) : res; } catch (e) { result = null; }
+                if (result && result.status === 'success') statusEl.textContent = result.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用';
+                else statusEl.textContent = '無法取得提醒狀態，請重整後再試';
+            }).withFailureHandler(function() {
+                statusEl.textContent = '無法取得提醒狀態，請重整後再試';
             }).apiGetFollowUpReminderStatus(authToken);
         }
 
         function configureFollowUpReminder() {
             if (!confirm('將建立或重設每日約上午 9:00 的追蹤 Email 提醒，確定要繼續嗎？')) return;
             google.script.run.withSuccessHandler(function(res) {
-                var result = JSON.parse(res);
+                var result;
+                try { result = typeof res === 'string' ? JSON.parse(res) : res; } catch (e) { result = null; }
                 if (result.status === 'success') { alert('每日追蹤提醒已啟用'); loadFollowUpReminderStatus(); }
-                else alert('設定失敗：' + (result.message || '未知錯誤'));
+                else alert('設定失敗：' + ((result && result.message) || '未知錯誤'));
+            }).withFailureHandler(function(err) {
+                alert('設定失敗：' + ((err && err.message) || '系統連線異常，請稍後再試'));
             }).apiConfigureFollowUpReminder(authToken);
         }
 
@@ -3875,7 +3885,7 @@
             if(tab === 'templates') { loadInterviewNoteTemplates(); return; }
             if(tab === 'training') { fetchTrainingRoster(); return; }
             if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else renderStats(); return; }
-            if(tab === 'followups') { renderFollowUps(); }
+            if(tab === 'followups') { renderFollowUps(); loadFollowUpReminderStatus(); }
         }
 
         // --- 帳號權限系統 ---
