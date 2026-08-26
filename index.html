@@ -3865,7 +3865,7 @@
             else if (currentStaffTab === 'templates') loadInterviewNoteTemplates(null, true);
             else if (currentStaffTab === 'training') fetchTrainingRoster(true);
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
-            else if (currentStaffTab === 'followups') loadFollowUpReminderStatus();
+            else if (currentStaffTab === 'followups') { fetchData(true); loadFollowUpReminderStatus(); }
             else renderStats();
         }
         
@@ -3909,7 +3909,8 @@
             if(tab === 'templates') { loadInterviewNoteTemplates(); return; }
             if(tab === 'training') { fetchTrainingRoster(); return; }
             if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else renderStats(); return; }
-            if(tab === 'followups') { renderFollowUps(); loadFollowUpReminderStatus(); }
+            // 追蹤欄位不在人才摘要 API 中；切換至此頁時一定要取得完整試算表資料。
+            if(tab === 'followups') { fetchData(); loadFollowUpReminderStatus(); }
         }
 
         // --- 帳號權限系統 ---
