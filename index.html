@@ -1273,6 +1273,9 @@
         var lucideRenderQueued = false;
         var STAFF_REMEMBERED_EMAIL_KEY = 'formosa_staff_remembered_email_v1';
         var STAFF_PERSISTENT_SESSION_KEY = 'formosa_staff_persistent_session_v1';
+        var persistentSessionRestoreInProgress = false;
+        var persistentSessionRestoreAttempts = 0;
+        var persistentSessionRestoreTimer = null;
         var CANDIDATE_STEP_LABELS = ['基本與聯絡', '應徵條件與經歷', '背景與能力', '確認並送出'];
         var draftSaveTimer = null;
 
@@ -1301,6 +1304,8 @@
         function removeLocalValue(key) { try { localStorage.removeItem(key); } catch (e) {} }
 
         function clearSavedStaffLogin(clearEmail) {
+            if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
+            persistentSessionRestoreAttempts = 0;
             removeLocalValue(STAFF_PERSISTENT_SESSION_KEY);
             if (clearEmail) removeLocalValue(STAFF_REMEMBERED_EMAIL_KEY);
         }
@@ -1314,6 +1319,8 @@
         }
 
         function activateStaffSession(token, user) {
+            if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
+            persistentSessionRestoreAttempts = 0;
             authToken = token;
             currentUser = user || null;
             db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
@@ -1332,13 +1339,30 @@
 
         function restorePersistentStaffSession() {
             var token = readLocalValue(STAFF_PERSISTENT_SESSION_KEY);
-            if (!token) return;
+            if (!token || persistentSessionRestoreInProgress || authToken) return;
+            persistentSessionRestoreInProgress = true;
             google.script.run.withSuccessHandler(function(res) {
                 var result;
-                try { result = JSON.parse(res); } catch (e) { clearSavedStaffLogin(false); return; }
-                if (!result || result.status !== 'success' || !result.user) { clearSavedStaffLogin(false); return; }
+                persistentSessionRestoreInProgress = false;
+                try { result = JSON.parse(res); } catch (e) { schedulePersistentSessionRestore(); return; }
+                // 只有後端明確拒絕該憑證（登出、停用、重設密碼）時才清除本機資料。
+                if (!result || result.status === 'error') { clearSavedStaffLogin(false); return; }
+                if (result.status !== 'success' || !result.user) { schedulePersistentSessionRestore(); return; }
                 activateStaffSession(token, result.user);
-            }).withFailureHandler(function() { clearSavedStaffLogin(false); }).apiRestoreSession(token);
+            }).withFailureHandler(function() {
+                persistentSessionRestoreInProgress = false;
+                schedulePersistentSessionRestore();
+            }).apiRestoreSession(token);
+        }
+
+        function schedulePersistentSessionRestore() {
+            if (!readLocalValue(STAFF_PERSISTENT_SESSION_KEY) || authToken || persistentSessionRestoreTimer) return;
+            var delay = Math.min(60000, 3000 * Math.pow(2, persistentSessionRestoreAttempts));
+            persistentSessionRestoreAttempts++;
+            persistentSessionRestoreTimer = setTimeout(function() {
+                persistentSessionRestoreTimer = null;
+                restorePersistentStaffSession();
+            }, delay);
         }
 
         // --- 台灣身分證字號檢核碼演算法 ---
