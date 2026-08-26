@@ -117,7 +117,7 @@
     <div id="login-modal" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-6">
         <div class="bg-white w-full max-w-xs rounded-3xl p-6 shadow-2xl transform transition-all scale-100">
             <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-[1000] italic text-slate-900">幹部驗證</h3><button onclick="hideLogin()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div>
-            <div class="space-y-4"><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">個人 Email</label><input type="email" id="loginEmail" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-slate-900 transition-colors" placeholder="name@gmail.com"></div><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Password</label><input type="password" id="loginPass" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-black tracking-widest outline-none focus:border-slate-900 transition-colors" placeholder="••••••••••"></div><button onclick="verifyPassword()" id="btnLogin" class="w-full btn-primary text-white rounded-2xl py-4 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"><i data-lucide="unlock" class="w-4 h-4"></i> 登入系統</button><p class="text-[10px] text-center text-slate-400">帳號請洽系統管理員建立。</p><button type="button" onclick="showRegister()" class="w-full text-[9px] text-slate-300">首次設定管理員</button></div>
+            <div class="space-y-4"><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">個人 Email</label><input type="email" id="loginEmail" autocomplete="username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-slate-900 transition-colors" placeholder="name@gmail.com"></div><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Password</label><input type="password" id="loginPass" autocomplete="current-password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-black tracking-widest outline-none focus:border-slate-900 transition-colors" placeholder="••••••••••"></div><label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 cursor-pointer"><input id="loginRememberEmail" type="checkbox" class="w-4 h-4 accent-slate-900">記住帳號</label><label class="flex items-start gap-2 text-[11px] font-bold text-slate-700 cursor-pointer"><input id="loginKeepSignedIn" type="checkbox" class="w-4 h-4 mt-0.5 accent-slate-900"><span>保持登入<span class="block text-[9px] text-slate-400 mt-0.5">限個人裝置使用；登出、帳號停用或重設密碼後失效。</span></span></label><button onclick="verifyPassword()" id="btnLogin" class="w-full btn-primary text-white rounded-2xl py-4 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"><i data-lucide="unlock" class="w-4 h-4"></i> 登入系統</button><p class="text-[10px] text-center text-slate-400">帳號請洽系統管理員建立。</p><button type="button" onclick="showRegister()" class="w-full text-[9px] text-slate-300">首次設定管理員</button></div>
         </div>
     </div>
 
@@ -1271,6 +1271,8 @@
         var staffTabSwitchToken = 0;
         var candidateModalRenderToken = 0;
         var lucideRenderQueued = false;
+        var STAFF_REMEMBERED_EMAIL_KEY = 'formosa_staff_remembered_email_v1';
+        var STAFF_PERSISTENT_SESSION_KEY = 'formosa_staff_persistent_session_v1';
         var CANDIDATE_STEP_LABELS = ['基本與聯絡', '應徵條件與經歷', '背景與能力', '確認並送出'];
         var draftSaveTimer = null;
 
@@ -1281,6 +1283,7 @@
             lucide.createIcons(); 
             initAddressSelectors();
             setupFormAutoSave();
+            restorePersistentStaffSession();
         };
 
         // 同一個畫面更新週期只掃描一次圖示，避免大量卡片重繪時重複處理整份 DOM。
@@ -1291,6 +1294,51 @@
                 lucideRenderQueued = false;
                 lucide.createIcons();
             });
+        }
+
+        function readLocalValue(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
+        function writeLocalValue(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+        function removeLocalValue(key) { try { localStorage.removeItem(key); } catch (e) {} }
+
+        function clearSavedStaffLogin(clearEmail) {
+            removeLocalValue(STAFF_PERSISTENT_SESSION_KEY);
+            if (clearEmail) removeLocalValue(STAFF_REMEMBERED_EMAIL_KEY);
+        }
+
+        function prefillSavedStaffEmail() {
+            var emailInput = document.getElementById('loginEmail');
+            var remember = document.getElementById('loginRememberEmail');
+            var email = readLocalValue(STAFF_REMEMBERED_EMAIL_KEY);
+            if (emailInput) emailInput.value = email;
+            if (remember) remember.checked = !!email;
+        }
+
+        function activateStaffSession(token, user) {
+            authToken = token;
+            currentUser = user || null;
+            db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
+            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false;
+            trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
+            candidateDetailCache = {};
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('view-landing').classList.add('hidden');
+            document.getElementById('app-staff').classList.remove('hidden');
+            applyPermissionsToNav(currentUser);
+            addCurrentUserToComboOptions();
+            initFilterCitySelector();
+            var permissions = (currentUser && currentUser.permissions) || [];
+            if (currentUser && (currentUser.isAdmin || permissions.some(function(key) { return ['today', 'talent', 'analytics'].indexOf(key) > -1; }))) fetchData();
+        }
+
+        function restorePersistentStaffSession() {
+            var token = readLocalValue(STAFF_PERSISTENT_SESSION_KEY);
+            if (!token) return;
+            google.script.run.withSuccessHandler(function(res) {
+                var result;
+                try { result = JSON.parse(res); } catch (e) { clearSavedStaffLogin(false); return; }
+                if (!result || result.status !== 'success' || !result.user) { clearSavedStaffLogin(false); return; }
+                activateStaffSession(token, result.user);
+            }).withFailureHandler(function() { clearSavedStaffLogin(false); }).apiRestoreSession(token);
         }
 
         // --- 台灣身分證字號檢核碼演算法 ---
@@ -1673,9 +1721,9 @@
 
         function showLogin() { 
             document.getElementById('login-modal').classList.remove('hidden'); 
-            document.getElementById('loginEmail').value = '';
+            prefillSavedStaffEmail();
             document.getElementById('loginPass').value = ''; 
-            document.getElementById('loginEmail').focus(); 
+            (document.getElementById('loginEmail').value ? document.getElementById('loginPass') : document.getElementById('loginEmail')).focus(); 
         }
         
         function hideLogin() { document.getElementById('login-modal').classList.add('hidden'); }
@@ -1691,6 +1739,7 @@
         }
         
         function backToHome() {
+            var tokenToInvalidate = authToken;
             document.getElementById('app-candidate').classList.add('hidden');
             document.getElementById('app-staff').classList.add('hidden');
             document.getElementById('view-landing').classList.remove('hidden');
@@ -1700,6 +1749,10 @@
             setCandidateStep(1);
             isSubmitting = false;
             authToken = ''; currentUser = null;
+            if (tokenToInvalidate) {
+                clearSavedStaffLogin(true);
+                google.script.run.withFailureHandler(function() {}).apiLogout(tokenToInvalidate);
+            }
             document.getElementById('btn-accounts').classList.add('hidden');
             var btn = document.getElementById('submitBtn');
             if(btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-5 h-5"></i> 提交資料 Submit'; }
@@ -2246,41 +2299,37 @@
         }
 
         function verifyPassword() { 
-            var email = document.getElementById('loginEmail').value;
+            var email = document.getElementById('loginEmail').value.trim();
             var input = document.getElementById('loginPass').value; 
+            var rememberEmail = document.getElementById('loginRememberEmail').checked;
+            var keepSignedIn = document.getElementById('loginKeepSignedIn').checked;
             var btn = document.getElementById('btnLogin'); 
+            btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-4 h-4"></i> 驗證中...'; 
             google.script.run.withSuccessHandler(function(res) { 
                 var result = JSON.parse(res);
                 if (result.status === 'success') { 
-                    authToken = result.token;
-                    currentUser = result.user || null;
-                    db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
-                    todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false;
-                    trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
-                    candidateDetailCache = {};
-                    document.getElementById('login-modal').classList.add('hidden'); 
-                    document.getElementById('view-landing').classList.add('hidden'); 
-                    document.getElementById('app-staff').classList.remove('hidden'); 
-                    applyPermissionsToNav(currentUser);
-                    addCurrentUserToComboOptions();
-                    initFilterCitySelector();
-                    var permissions = (currentUser && currentUser.permissions) || [];
-                    if (currentUser && (currentUser.isAdmin || permissions.some(function(key) { return ['today', 'talent', 'analytics'].indexOf(key) > -1; }))) fetchData();
-                    // 首個可用頁籤會由 applyPermissionsToNav 載入所需資料，避免登入時重複同步。
+                    if (rememberEmail) writeLocalValue(STAFF_REMEMBERED_EMAIL_KEY, email);
+                    else removeLocalValue(STAFF_REMEMBERED_EMAIL_KEY);
+                    if (result.persistent === true && keepSignedIn) writeLocalValue(STAFF_PERSISTENT_SESSION_KEY, result.token);
+                    else removeLocalValue(STAFF_PERSISTENT_SESSION_KEY);
+                    activateStaffSession(result.token, result.user || null);
                 } else { 
                     alert(result.message || "密碼錯誤，請重新輸入"); 
                     document.getElementById('loginPass').value = ''; 
                 } 
+                btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="unlock" class="w-4 h-4"></i> 登入系統'; 
             }).withFailureHandler(function(err) {
                 alert("系統連線錯誤: " + err);
+                btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="unlock" class="w-4 h-4"></i> 登入系統';
-            }).apiVerifyLogin(email, input); 
+            }).apiVerifyLogin(email, input, keepSignedIn); 
         }
 
         function handleSessionExpired(message) {
             alert(message || "登入已過期，請重新登入");
+            clearSavedStaffLogin(false);
             authToken = '';
             currentUser = null;
             document.getElementById('btn-accounts').classList.add('hidden');
