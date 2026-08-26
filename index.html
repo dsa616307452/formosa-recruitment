@@ -24,7 +24,7 @@
         .staff-view-enter { animation: staffViewEnter 180ms cubic-bezier(.22,.8,.32,1) both; }
         @keyframes staffViewEnter { from { opacity: .01; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
         #app-staff > nav button { transition-property: color, background-color, transform; transition-duration: 160ms; transition-timing-function: ease-out; }
-        #view-database, #view-jobs, #view-today, #view-followups, #view-stats, #view-training, #view-accounts { will-change: opacity, transform; }
+        #view-database, #view-templates, #view-jobs, #view-today, #view-followups, #view-stats, #view-training, #view-accounts { will-change: opacity, transform; }
         #modal, #job-modal { will-change: transform; }
         #dbList > *, #todayGrid > *, #jobsList > * { transition-property: transform, background-color, border-color, box-shadow, opacity; transition-duration: 160ms; transition-timing-function: ease-out; }
         @media (prefers-reduced-motion: reduce) {
@@ -533,6 +533,15 @@
                 <div id="dbList" class="space-y-3"></div>
                 <div id="pagination" class="flex justify-between items-center bg-white border border-slate-100 rounded-2xl p-2 px-4 shadow-sm"><button onclick="changePage(-1)" class="p-2 text-slate-400 disabled:opacity-20" id="prevBtn"><i data-lucide="chevron-left" class="w-5 h-5"></i></button><span id="pageInfo" class="text-[10px] font-black text-slate-900 italic">PAGE 1 / 1</span><button onclick="changePage(1)" class="p-2 text-slate-400 disabled:opacity-20" id="nextBtn"><i data-lucide="chevron-right" class="w-5 h-5"></i></button></div>
             </div>
+
+            <!-- View: Interview note templates -->
+            <div id="view-templates" class="hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                    <div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">評語範本</h2><p class="text-xs font-bold text-slate-400 mt-1">建立個人常用評語，面試時可從候選人詳情快速套用</p></div>
+                    <button type="button" onclick="openInterviewTemplateEditor()" class="bg-slate-900 text-white text-xs font-black px-4 py-3 rounded-2xl inline-flex items-center justify-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i>新增範本</button>
+                </div>
+                <div id="interviewTemplatePageList" class="space-y-3"><p class="text-center text-slate-300 py-10">讀取範本中...</p></div>
+            </div>
             
             <!-- View: Follow-ups -->
             <div id="view-followups" class="hidden space-y-6">
@@ -715,7 +724,7 @@
             </div>
         </main>
         
-        <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-100 px-4 pt-4 pb-8 z-50 flex justify-between"><button onclick="switchTab('today')" id="btn-today" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all tab-active"><i data-lucide="calendar-check-2" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">今日</span></button><button onclick="switchTab('jobs')" id="btn-jobs" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="briefcase" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">職缺</span></button><button onclick="switchTab('database')" id="btn-database" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="database" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">人才庫</span></button><button onclick="switchTab('followups')" id="btn-followups" class="hidden flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all relative"><i data-lucide="calendar-clock" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">追蹤</span><span id="followUpNavBadge" class="hidden text-[9px] font-black bg-rose-500 text-white rounded-full min-w-4 h-4 px-1 leading-4">0</span></button><button onclick="switchTab('stats')" id="btn-stats" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="bar-chart-3" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">分析</span></button><button onclick="switchTab('accounts')" id="btn-accounts" class="hidden flex flex-1 flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="users" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">帳號</span></button></nav>
+        <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-100 px-4 pt-4 pb-8 z-50 flex justify-between"><button onclick="switchTab('today')" id="btn-today" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all tab-active"><i data-lucide="calendar-check-2" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">今日</span></button><button onclick="switchTab('jobs')" id="btn-jobs" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="briefcase" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">職缺</span></button><button onclick="switchTab('database')" id="btn-database" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="database" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">人才庫</span></button><button onclick="switchTab('templates')" id="btn-templates" class="hidden flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="sticky-note" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">評語範本</span></button><button onclick="switchTab('followups')" id="btn-followups" class="hidden flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all relative"><i data-lucide="calendar-clock" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">追蹤</span><span id="followUpNavBadge" class="hidden text-[9px] font-black bg-rose-500 text-white rounded-full min-w-4 h-4 px-1 leading-4">0</span></button><button onclick="switchTab('stats')" id="btn-stats" class="flex-1 flex flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="bar-chart-3" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">分析</span></button><button onclick="switchTab('accounts')" id="btn-accounts" class="hidden flex flex-1 flex-col items-center gap-1 text-slate-400 transition-all"><i data-lucide="users" class="w-6 h-6"></i><span class="text-[10px] font-black uppercase tracking-widest">帳號</span></button></nav>
     </div>
 
     <!-- Modal: 候選人詳細資料與評分 -->
@@ -797,7 +806,7 @@
                 
                 <input id="mSkill" type="text" placeholder="關鍵特質評語 (例: 認真負責)..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm outline-none">
                 <div class="bg-white border border-slate-200 rounded-2xl p-3 space-y-2">
-                    <div class="flex items-center justify-between gap-2"><label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">我的評語範本</label><div class="flex gap-1.5 shrink-0"><button type="button" onclick="openInterviewTemplateEditor()" class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg">新增範本</button><button type="button" onclick="openInterviewTemplateManager()" class="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg">管理</button></div></div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest">我的評語範本</label>
                     <div id="mNoteTemplateList" class="flex flex-wrap gap-1.5"><span class="text-[10px] font-bold text-slate-300">讀取範本中...</span></div>
                 </div>
                 <textarea id="mNote" rows="3" placeholder="面試官詳細評語..." class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-600 text-sm outline-none"></textarea>
@@ -1136,6 +1145,18 @@
                 return '<article class="border border-slate-100 rounded-2xl p-4"><div class="flex justify-between gap-3"><div class="min-w-0"><p class="font-black text-sm text-slate-800 truncate">' + escapeHtml(template.title) + '</p><p class="mt-2 text-xs text-slate-500 whitespace-pre-wrap break-words">' + escapeHtml(template.body) + '</p></div><div class="flex shrink-0 gap-1"><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="openInterviewTemplateEditor(this.dataset.templateId)" class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1.5 rounded-lg">修改</button><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="deleteInterviewTemplate(this.dataset.templateId)" class="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-1.5 rounded-lg">刪除</button></div></div></article>';
             }).join('');
         }
+        function renderInterviewTemplatePage() {
+            var list = document.getElementById('interviewTemplatePageList');
+            if (!list) return;
+            if (!interviewNoteTemplates.length) {
+                list.innerHTML = '<div class="bg-white border border-dashed border-slate-200 rounded-3xl py-14 px-6 text-center"><div class="w-12 h-12 mx-auto mb-4 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center"><i data-lucide="sticky-note" class="w-6 h-6"></i></div><p class="font-black text-slate-700">尚未建立評語範本</p><p class="mt-2 text-xs font-bold text-slate-400">先建立第一個範本，面試時即可快速帶入常用評語。</p><button type="button" onclick="openInterviewTemplateEditor()" class="mt-5 text-xs font-black text-indigo-600 bg-indigo-50 px-4 py-2.5 rounded-xl">新增第一個範本</button></div>';
+                scheduleLucideIcons();
+                return;
+            }
+            list.innerHTML = interviewNoteTemplates.map(function(template) {
+                return '<article class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm"><div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4"><div class="min-w-0"><p class="font-black text-slate-800">' + escapeHtml(template.title) + '</p><p class="mt-2 text-sm leading-6 text-slate-500 whitespace-pre-wrap break-words line-clamp-3">' + escapeHtml(template.body) + '</p></div><div class="flex shrink-0 gap-2"><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="openInterviewTemplateEditor(this.dataset.templateId)" class="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">修改</button><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="deleteInterviewTemplate(this.dataset.templateId)" class="text-xs font-black text-rose-500 bg-rose-50 px-3 py-2 rounded-xl">刪除</button></div></div></article>';
+            }).join('');
+        }
         function loadInterviewNoteTemplates(callback) {
             if (!authToken) return;
             google.script.run.withSuccessHandler(function(res) {
@@ -1145,6 +1166,7 @@
                 interviewNoteTemplates = result.templates || [];
                 renderInterviewNoteTemplates();
                 renderInterviewTemplateManager();
+                renderInterviewTemplatePage();
                 if (callback) callback();
             }).apiGetInterviewNoteTemplates(authToken);
         }
@@ -3772,6 +3794,7 @@
         function refreshCurrentView() {
             if (currentStaffTab === 'jobs') fetchJobs(true);
             else if (currentStaffTab === 'accounts') fetchAccounts();
+            else if (currentStaffTab === 'templates') loadInterviewNoteTemplates();
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
             else if (currentStaffTab === 'training') fetchTrainingRoster(true);
             else if (currentStaffTab === 'followups') fetchData(true);
@@ -3783,7 +3806,7 @@
             currentStaffTab = tab;
             var switchToken = ++staffTabSwitchToken;
             var activeView = null;
-            ['today', 'database', 'followups', 'stats', 'jobs', 'training', 'accounts'].forEach(function(t) { 
+            ['today', 'database', 'templates', 'followups', 'stats', 'jobs', 'training', 'accounts'].forEach(function(t) { 
                 var view = document.getElementById('view-' + t); 
                 var btn = document.getElementById('btn-' + t); 
                 if (t === tab) { 
@@ -3819,6 +3842,7 @@
             }
             if(tab === 'jobs') { fetchJobs(); return; }
             if(tab === 'accounts') { fetchAccounts(); return; }
+            if(tab === 'templates') { loadInterviewNoteTemplates(); return; }
             if(tab === 'training') { fetchTrainingRoster(); return; }
             if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else fetchData(); return; }
             if(tab === 'followups') { fetchData(); loadFollowUpReminderStatus(); }
@@ -3857,6 +3881,9 @@
                     btn.classList.add('hidden');
                 }
             });
+            var templateButton = document.getElementById('btn-templates');
+            var canUseTemplates = user && (user.isAdmin || allowedKeys.indexOf('today') > -1 || allowedKeys.indexOf('talent') > -1);
+            if (templateButton) templateButton.classList.toggle('hidden', !canUseTemplates);
             var userName = document.getElementById('staffUserName');
             var permissionSummary = document.getElementById('staffPermissionSummary');
             if (userName) userName.textContent = (user && user.name) || (user && user.email) || '已登入使用者';
