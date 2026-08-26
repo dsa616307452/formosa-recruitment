@@ -456,6 +456,10 @@
             <div class="flex justify-between items-center"><div class="flex items-center gap-3"><div class="w-10 h-10 bg-slate-900 rounded-xl shadow-lg flex items-center justify-center overflow-hidden relative"><div class="absolute top-0 right-0 w-6 h-6 bg-slate-800 rounded-bl-full opacity-50"></div><span class="text-white font-black italic text-xl">F</span></div><div><h1 class="text-lg font-black tracking-tighter italic leading-none text-slate-900">Formosa</h1><p id="syncStatus" class="text-[9px] font-bold text-slate-400 uppercase mt-0.5 tracking-widest">系統連線中</p></div><div class="hidden sm:block border-l border-slate-200 pl-3 ml-1"><p id="staffUserName" class="text-xs font-black text-slate-700">尚未登入</p><p id="staffPermissionSummary" class="text-[9px] font-bold text-slate-400">載入權限中</p></div></div><div class="flex gap-2"><button onclick="backToHome()" aria-label="登出系統" title="登出系統" class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 active:scale-90 transition-transform hover:bg-slate-100 hover:text-red-500"><i data-lucide="log-out" class="w-4 h-4"></i></button><button onclick="refreshCurrentView()" aria-label="重新整理目前頁面" title="重新整理" class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 active:scale-90 transition-transform hover:bg-slate-100"><i data-lucide="refresh-cw" id="syncIcon" class="w-4 h-4"></i></button></div></div>
         </header>
 
+        <div id="initial-data-overlay" class="hidden fixed inset-0 z-[90] bg-slate-50/95 backdrop-blur-sm flex items-center justify-center p-6">
+            <div class="w-full max-w-sm bg-white rounded-3xl border border-slate-100 shadow-xl p-7 text-center"><div class="w-12 h-12 mx-auto mb-5 rounded-2xl bg-slate-900 text-white flex items-center justify-center"><i data-lucide="loader-circle" class="w-6 h-6 animate-spin"></i></div><h2 class="text-lg font-black text-slate-900">系統資料準備中</h2><p id="initialDataStatus" class="mt-2 text-xs font-bold leading-6 text-slate-400">正在讀取可用資料，請稍候…</p><button id="initialDataRetry" type="button" onclick="loadBootstrapData(true)" class="hidden mt-5 w-full rounded-xl bg-slate-900 py-3 text-xs font-black text-white">重新嘗試</button></div>
+        </div>
+
         <main class="flex-1 pb-32 px-5 pt-6 no-scrollbar overflow-y-auto">
             <div id="errorBox" class="hidden bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold mb-4 whitespace-pre-wrap"></div>
             
@@ -1123,6 +1127,7 @@
 
         // --- 個人面試評語範本 ---
         var interviewNoteTemplates = [];
+        var interviewNoteTemplatesLoaded = false;
         function renderInterviewNoteTemplates() {
             var list = document.getElementById('mNoteTemplateList');
             if (!list) return;
@@ -1157,13 +1162,15 @@
                 return '<article class="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm"><div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4"><div class="min-w-0"><p class="font-black text-slate-800">' + escapeHtml(template.title) + '</p><p class="mt-2 text-sm leading-6 text-slate-500 whitespace-pre-wrap break-words line-clamp-3">' + escapeHtml(template.body) + '</p></div><div class="flex shrink-0 gap-2"><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="openInterviewTemplateEditor(this.dataset.templateId)" class="text-xs font-black text-indigo-600 bg-indigo-50 px-3 py-2 rounded-xl">修改</button><button type="button" data-template-id="' + escapeHtml(template.id) + '" onclick="deleteInterviewTemplate(this.dataset.templateId)" class="text-xs font-black text-rose-500 bg-rose-50 px-3 py-2 rounded-xl">刪除</button></div></div></article>';
             }).join('');
         }
-        function loadInterviewNoteTemplates(callback) {
+        function loadInterviewNoteTemplates(callback, force) {
             if (!authToken) return;
+            if (interviewNoteTemplatesLoaded && !force) { renderInterviewNoteTemplates(); renderInterviewTemplateManager(); renderInterviewTemplatePage(); if (callback) callback(); return; }
             google.script.run.withSuccessHandler(function(res) {
                 var result;
                 try { result = JSON.parse(res); } catch (e) { return; }
                 if (!result || result.status !== 'success') return;
                 interviewNoteTemplates = result.templates || [];
+                interviewNoteTemplatesLoaded = true;
                 renderInterviewNoteTemplates();
                 renderInterviewTemplateManager();
                 renderInterviewTemplatePage();
@@ -1205,7 +1212,7 @@
                 button.disabled = false;
                 if (!result || result.status !== 'success') { alert((result && result.message) || '儲存範本失敗'); return; }
                 closeInterviewTemplateEditor();
-                loadInterviewNoteTemplates();
+                loadInterviewNoteTemplates(null, true);
             }).apiSaveInterviewNoteTemplate(authToken, { id: id, title: title, body: body });
         }
         function deleteInterviewTemplate(templateId) {
@@ -1215,7 +1222,7 @@
                 var result;
                 try { result = JSON.parse(res); } catch (e) { result = { status: 'error' }; }
                 if (!result || result.status !== 'success') { alert((result && result.message) || '刪除範本失敗'); return; }
-                loadInterviewNoteTemplates();
+                loadInterviewNoteTemplates(null, true);
             }).apiDeleteInterviewNoteTemplate(authToken, templateId);
         }
 
@@ -1406,6 +1413,8 @@
         var allJobs = []; 
         var jobsLoaded = false;
         var jobsLoading = false;
+        var initialDataLoading = false;
+        var initialDataReady = false;
         var trainingDB = []; 
         var trainingStatsLoaded = false;
         var showClosedJobs = false; 
@@ -1526,17 +1535,68 @@
             authToken = token;
             currentUser = user || null;
             db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
-            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false; jobsLoading = false;
+            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false; jobsLoading = false; interviewNoteTemplates = []; interviewNoteTemplatesLoaded = false;
             trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
             candidateDetailCache = {};
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('view-landing').classList.add('hidden');
             document.getElementById('app-staff').classList.remove('hidden');
+            initialDataReady = false;
+            initialDataLoading = true;
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
-            // 登入後只讀取目前所在頁籤；完整人才庫等使用者開啟人才庫或分析時才載入，
-            // 避免與職缺／今日待辦同時向 Apps Script 請求大量資料。
+            loadBootstrapData(true);
+        }
+
+        function setBootstrapOverlay(message, failed) {
+            var overlay = document.getElementById('initial-data-overlay');
+            var status = document.getElementById('initialDataStatus');
+            var retry = document.getElementById('initialDataRetry');
+            if (overlay) overlay.classList.remove('hidden');
+            if (status) status.textContent = message;
+            if (retry) retry.classList.toggle('hidden', !failed);
+        }
+        function hydrateTalentIndex(data) {
+            talentIndex = (data.rows || []).map(function(item) {
+                var parsed = parseAddress(item['通訊地址'] || '');
+                item._city = parsed.city || '未註明'; item._district = parsed.district || '未註明'; item._summary = true;
+                return item;
+            });
+            db = talentIndex.slice(); talentPageJobs = data.jobs || []; talentIndexLoaded = true;
+            var jobSelect = document.getElementById('fJob');
+            if (jobSelect) jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
+        }
+        function loadBootstrapData(force) {
+            if (!authToken || (initialDataLoading && !force)) return;
+            initialDataLoading = true; initialDataReady = false;
+            setBootstrapOverlay('正在讀取可用資料，請稍候…', false);
+            google.script.run.withSuccessHandler(function(res) {
+                var result;
+                try { result = JSON.parse(res); } catch (e) { result = { status: 'error', message: '後端回傳資料格式錯誤' }; }
+                if (!result || result.status !== 'success') {
+                    initialDataLoading = false;
+                    setBootstrapOverlay('資料準備失敗：' + ((result && result.message) || '請稍後再試'), true);
+                    return;
+                }
+                var data = result.data || {};
+                if (data.talent) hydrateTalentIndex(data.talent);
+                else if (Array.isArray(data.talentFull)) { db = data.talentFull; fullDataLoaded = true; }
+                if (data.today) { todayCandidates = data.today.rows || []; todayLoaded = true; }
+                if (Array.isArray(data.jobs)) { allJobs = data.jobs; jobsLoaded = true; }
+                if (data.templates) { interviewNoteTemplates = data.templates.templates || []; interviewNoteTemplatesLoaded = true; renderInterviewNoteTemplates(); renderInterviewTemplateManager(); renderInterviewTemplatePage(); }
+                if (Array.isArray(data.trainingStats)) { trainingDB = data.trainingStats; trainingStatsLoaded = true; }
+                if (data.trainingRoster) { trainingMeta = data.trainingRoster; trainingRoster = data.trainingRoster.rows || []; trainingRosterLoaded = true; var rosterFilter = document.getElementById('trainingBranchFilter'); if (rosterFilter) { var rosterBranches = currentUser && currentUser.isAdmin ? ['全部'].concat(['台中總部','台中海線港區分部','新北分部']) : ((currentUser && currentUser.branches) || []); rosterFilter.innerHTML = rosterBranches.map(function(branch) { return '<option value="' + branch + '">' + branch + '</option>'; }).join(''); } }
+                if (data.followUpReminder && document.getElementById('followUpReminderStatus')) document.getElementById('followUpReminderStatus').textContent = data.followUpReminder.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用';
+                initialDataLoading = false; initialDataReady = true;
+                document.getElementById('initial-data-overlay').classList.add('hidden');
+                document.getElementById('syncStatus').innerText = '最後同步: ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                loadStaffTabData(currentStaffTab);
+                scheduleLucideIcons();
+            }).withFailureHandler(function(err) {
+                initialDataLoading = false;
+                setBootstrapOverlay('資料準備失敗：' + ((err && err.message) || '系統連線錯誤'), true);
+            }).apiGetBootstrapData(authToken);
         }
 
         function restorePersistentStaffSession() {
@@ -3804,14 +3864,7 @@
         }
 
         function refreshCurrentView() {
-            if (currentStaffTab === 'jobs') fetchJobs(true);
-            else if (currentStaffTab === 'accounts') fetchAccounts();
-            else if (currentStaffTab === 'templates') loadInterviewNoteTemplates();
-            else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
-            else if (currentStaffTab === 'training') fetchTrainingRoster(true);
-            else if (currentStaffTab === 'followups') fetchData(true);
-            else if (currentStaffTab === 'database') fetchData(true);
-            else fetchTodayCandidates(true);
+            loadBootstrapData(true);
         }
         
         function switchTab(tab) { 
@@ -3843,6 +3896,8 @@
         }
 
         function loadStaffTabData(tab) {
+            if (initialDataLoading) return;
+            if (!initialDataReady) { loadBootstrapData(); return; }
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
                 if (talentIndexLoaded) renderDB();
@@ -3853,8 +3908,8 @@
             if(tab === 'accounts') { fetchAccounts(); return; }
             if(tab === 'templates') { loadInterviewNoteTemplates(); return; }
             if(tab === 'training') { fetchTrainingRoster(); return; }
-            if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else fetchData(); return; }
-            if(tab === 'followups') { fetchData(); loadFollowUpReminderStatus(); }
+            if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else renderStats(); return; }
+            if(tab === 'followups') { renderFollowUps(); }
         }
 
         // --- 帳號權限系統 ---
