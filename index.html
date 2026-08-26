@@ -1405,6 +1405,7 @@
         var candidateDetailCache = {};
         var allJobs = []; 
         var jobsLoaded = false;
+        var jobsLoading = false;
         var trainingDB = []; 
         var trainingStatsLoaded = false;
         var showClosedJobs = false; 
@@ -1525,7 +1526,7 @@
             authToken = token;
             currentUser = user || null;
             db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
-            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false;
+            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false; jobsLoading = false;
             trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
             candidateDetailCache = {};
             document.getElementById('login-modal').classList.add('hidden');
@@ -1534,8 +1535,8 @@
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
-            var permissions = (currentUser && currentUser.permissions) || [];
-            if (currentUser && (currentUser.isAdmin || permissions.some(function(key) { return ['today', 'talent', 'analytics'].indexOf(key) > -1; }))) fetchData();
+            // 登入後只讀取目前所在頁籤；完整人才庫等使用者開啟人才庫或分析時才載入，
+            // 避免與職缺／今日待辦同時向 Apps Script 請求大量資料。
         }
 
         function restorePersistentStaffSession() {
@@ -2236,9 +2237,12 @@
 
         function fetchJobs(force) {
             if (jobsLoaded && !force) { renderJobs(); return; }
+            if (jobsLoading) return;
+            jobsLoading = true;
             var list = document.getElementById('jobsList');
             list.innerHTML = '<p class="text-center text-slate-300 italic font-black text-sm py-10">更新資料中...</p>';
             google.script.run.withSuccessHandler(function(res) {
+                jobsLoading = false;
                 var jobs = [];
                 try { jobs = JSON.parse(res); } catch(e) { console.error("JSON Parse error", e); }
                 if (!Array.isArray(jobs)) {
@@ -2248,6 +2252,10 @@
                 allJobs = jobs; 
                 jobsLoaded = true;
                 renderJobs();
+            }).withFailureHandler(function(err) {
+                jobsLoading = false;
+                list.innerHTML = '<p class="text-center text-rose-400 font-black text-sm py-10">職缺資料暫時無法載入，請稍後再試。</p>';
+                console.error('職缺載入失敗', err);
             }).apiGetJobs(authToken);
         }
 
