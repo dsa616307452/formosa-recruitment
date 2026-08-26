@@ -2247,7 +2247,8 @@
                 try { jobs = JSON.parse(res); } catch(e) { console.error("JSON Parse error", e); }
                 if (!Array.isArray(jobs)) {
                     if (jobs && String(jobs.message || '').indexOf('登入') > -1) { handleSessionExpired(jobs.message); return; }
-                    jobs = [];
+                    list.innerHTML = '<p class="text-center text-rose-400 font-black text-sm py-10">職缺資料載入失敗：' + escapeHtml((jobs && jobs.message) || '請稍後再試') + '</p>';
+                    return;
                 }
                 allJobs = jobs; 
                 jobsLoaded = true;
@@ -2585,10 +2586,11 @@
             google.script.run.withSuccessHandler(function(response) { 
                 try { 
                     var rawData = JSON.parse(response); 
-                    if (rawData && !Array.isArray(rawData) && String(rawData.message || '').indexOf('登入') > -1) {
+                    if (rawData && !Array.isArray(rawData)) {
                         icon.classList.remove('animate-spin');
                         fullDataLoading = false;
-                        handleSessionExpired(rawData.message);
+                        if (String(rawData.message || '').indexOf('登入') > -1) handleSessionExpired(rawData.message);
+                        else status.innerText = '同步失敗：' + (rawData.message || '後端資料格式錯誤');
                         return;
                     }
                     if (!rawData || rawData.length === 0) { 
@@ -2621,7 +2623,7 @@
                     updateUI(); 
                 } catch(e) { 
                     console.error(e); 
-                    status.innerText = "資料解析失敗"; 
+                    status.innerText = "同步失敗：資料格式無法處理"; 
                     fullDataLoading = false;
                 } 
                 icon.classList.remove('animate-spin'); 
@@ -2652,14 +2654,16 @@
             document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">載入人才資料中...</div>';
             google.script.run.withSuccessHandler(function(res) {
                 var data;
-                try { data = JSON.parse(res); } catch (e) { console.error('人才庫資料解析失敗', e); return; }
-                if (!data || data.status !== 'success') { if (data && data.message) alert(data.message); return; }
+                try { data = JSON.parse(res); } catch (e) { console.error('人才庫資料解析失敗', e); document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-rose-400 font-black text-xs">人才庫資料格式無法處理，請重新整理後再試。</div>'; return; }
+                if (!data || data.status !== 'success') { document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-rose-400 font-black text-xs">人才庫載入失敗：' + escapeHtml((data && data.message) || '請稍後再試') + '</div>'; return; }
                 talentIndex = (data.rows || []).map(function(item) {
                     var parsed = parseAddress(item['通訊地址'] || '');
                     item._city = parsed.city || '未註明';
                     item._district = parsed.district || '未註明';
+                    item._summary = true;
                     return item;
                 });
+                db = talentIndex.slice();
                 talentPageJobs = data.jobs || [];
                 talentIndexLoaded = true;
                 var jobSelect = document.getElementById('fJob');
@@ -3362,7 +3366,7 @@
 
         function openModal(rowId) { 
             var t = candidateDetailCache[rowId] || db.find(function(x) { return x.rowId === rowId; });
-            if (!t) {
+            if (!t || t._summary) {
                 google.script.run.withSuccessHandler(function(res) {
                     var data;
                     try { data = JSON.parse(res); } catch (e) { alert('履歷資料解析失敗'); return; }
@@ -3841,11 +3845,8 @@
         function loadStaffTabData(tab) {
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
-                if (fullDataLoaded) renderDB();
-                else {
-                    document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">人才資料同步中，完成後會自動顯示。</div>';
-                    fetchData();
-                }
+                if (talentIndexLoaded) renderDB();
+                else fetchTalentIndex();
                 return;
             }
             if(tab === 'jobs') { fetchJobs(); return; }
