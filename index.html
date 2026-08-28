@@ -483,7 +483,7 @@
                 <div class="space-y-3 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
                     <div class="relative">
                         <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="dbSearch" oninput="resetAndRenderDB()" placeholder="搜尋姓名、電話或地址關鍵字（如：南屯）..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold outline-none focus:bg-white focus:border-slate-300 transition-all">
+                        <input type="text" id="dbSearch" oninput="debounceTalentSearch()" placeholder="搜尋姓名、電話或地址關鍵字（如：南屯）..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold outline-none focus:bg-white focus:border-slate-300 transition-all">
                     </div>
                     
                     <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
@@ -1452,6 +1452,8 @@
         var staffTabSwitchToken = 0;
         var candidateModalRenderToken = 0;
         var lucideRenderQueued = false;
+        var bootstrapLoading = false;
+        var talentSearchTimer = null;
         var STAFF_REMEMBERED_EMAIL_KEY = 'formosa_staff_remembered_email_v1';
         var STAFF_PERSISTENT_SESSION_KEY = 'formosa_staff_persistent_session_v1';
         var persistentSessionRestoreInProgress = false;
@@ -1554,6 +1556,7 @@
             persistentSessionRestoreAttempts = 0;
             authToken = token;
             currentUser = user || null;
+            if (talentSearchTimer) { clearTimeout(talentSearchTimer); talentSearchTimer = null; }
             db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentIndexLoading = false; talentPageRows = []; talentPageTotal = 0;
             todayCandidates = []; todayLoaded = false; todayLoading = false; allJobs = []; jobsLoaded = false; jobsLoading = false; interviewNoteTemplates = []; interviewNoteTemplatesLoaded = false;
             trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
@@ -1561,20 +1564,62 @@
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('view-landing').classList.add('hidden');
             document.getElementById('app-staff').classList.remove('hidden');
+            bootstrapLoading = true;
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
-            loadStaffTabData(currentStaffTab);
             preloadPrimaryStaffData();
         }
 
-        // 登入後立刻可操作；主要資料在背景分別讀取，不等待整批資料準備完成。
+        // 登入後以單一整合請求讀取初始資料，人才摘要只會在後端掃描一次。
         function preloadPrimaryStaffData() {
+            google.script.run.withSuccessHandler(function(res) {
+                var result;
+                try { result = typeof res === 'string' ? JSON.parse(res) : res; } catch (e) { result = null; }
+                bootstrapLoading = false;
+                if (!result || result.status !== 'success' || !result.data) {
+                    if (result && String(result.message || '').indexOf('登入') > -1) handleSessionExpired(result.message);
+                    else loadPrimaryStaffDataIndividually();
+                    return;
+                }
+                var data = result.data;
+                if (data.talent && data.talent.status === 'success') {
+                    talentIndex = (data.talent.rows || []).map(normalizeTalentSummary);
+                    db = talentIndex.slice();
+                    talentPageJobs = data.talent.jobs || [];
+                    talentIndexLoaded = true;
+                    populateTalentJobFilter();
+                }
+                if (data.today && data.today.status === 'success') {
+                    todayCandidates = data.today.rows || [];
+                    todayLoaded = true;
+                }
+                if (Array.isArray(data.jobs)) { allJobs = data.jobs; jobsLoaded = true; }
+                if (data.templates && data.templates.status === 'success') { interviewNoteTemplates = data.templates.templates || []; interviewNoteTemplatesLoaded = true; }
+                if (data.followUpReminder && data.followUpReminder.status === 'success') {
+                    var reminderStatus = document.getElementById('followUpReminderStatus');
+                    if (reminderStatus) reminderStatus.textContent = data.followUpReminder.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用';
+                }
+                if (Array.isArray(data.trainingStats)) { trainingDB = data.trainingStats; trainingStatsLoaded = true; }
+                loadStaffTabData(currentStaffTab);
+                renderToday();
+                renderFollowUps();
+                scheduleLucideIcons();
+            }).withFailureHandler(function(err) {
+                bootstrapLoading = false;
+                console.error('登入初始資料載入失敗', err);
+                loadPrimaryStaffDataIndividually();
+            }).apiGetBootstrapData(authToken);
+        }
+
+        // Bootstrap 無法使用時，保留原本分別載入的可用性備援。
+        function loadPrimaryStaffDataIndividually() {
             var permissions = (currentUser && currentUser.permissions) || [];
             var isAdmin = currentUser && currentUser.isAdmin;
             if (isAdmin || permissions.indexOf('today') > -1 || permissions.indexOf('talent') > -1) fetchTodayCandidates();
             if (isAdmin || permissions.indexOf('talent') > -1) fetchTalentIndex();
             if (isAdmin || permissions.indexOf('jobs') > -1) fetchJobs();
+            loadStaffTabData(currentStaffTab);
         }
 
         function restorePersistentStaffSession() {
@@ -1785,7 +1830,7 @@
 
                 if (document.getElementById('cCriminal')) toggleCriminalReason();
                 document.getElementById('draftAlert').classList.add('hidden');
-                lucide.createIcons();
+                scheduleLucideIcons();
             } catch(e) {
                 console.error("Restore draft error", e);
             }
@@ -1868,7 +1913,7 @@
                         select.appendChild(optgroup);
                     }
                 }
-                lucide.createIcons();
+                scheduleLucideIcons();
             } else {
                 container.classList.add('hidden');
                 select.value = "";
@@ -1959,7 +2004,7 @@
             document.getElementById('candidateNextBtn').classList.toggle('hidden', currentCandidateStep === 4);
             var form = document.getElementById('candidateForm');
             if (form) form.scrollTop = 0;
-            lucide.createIcons();
+            scheduleLucideIcons();
         }
 
         function changeCandidateStep(delta) {
@@ -1980,7 +2025,7 @@
             initAddressSelectors();
             checkDraftExists();
             setCandidateStep(1);
-            lucide.createIcons(); 
+            scheduleLucideIcons(); 
         }
 
         function showLogin() { 
@@ -1991,7 +2036,7 @@
         }
         
         function hideLogin() { document.getElementById('login-modal').classList.add('hidden'); }
-        function showRegister() { document.getElementById('register-modal').classList.remove('hidden'); lucide.createIcons(); }
+        function showRegister() { document.getElementById('register-modal').classList.remove('hidden'); scheduleLucideIcons(); }
         function hideRegister() { document.getElementById('register-modal').classList.add('hidden'); }
         function registerAccount() {
             var btn = document.getElementById('btnRegister'); btn.disabled = true;
@@ -2150,7 +2195,7 @@
             document.getElementById('jd-modal-title').innerText = "職缺需求詳情";
 
             document.getElementById('job-detail-modal').classList.add('modal-active');
-            lucide.createIcons();
+            scheduleLucideIcons();
         }
 
         // --- 【P2 新增】一鍵複製職缺資訊至剪貼簿 ---
@@ -2697,20 +2742,11 @@
                 talentIndexLoading = false;
                 try { data = JSON.parse(res); } catch (e) { console.error('人才庫資料解析失敗', e); document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-rose-400 font-black text-xs">人才庫資料格式無法處理，請重新整理後再試。</div>'; return; }
                 if (!data || data.status !== 'success') { document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-rose-400 font-black text-xs">人才庫載入失敗：' + escapeHtml((data && data.message) || '請稍後再試') + '</div>'; return; }
-                talentIndex = (data.rows || []).map(function(item) {
-                    var parsed = parseAddress(item['通訊地址'] || '');
-                    item._city = parsed.city || '未註明';
-                    item._district = parsed.district || '未註明';
-                    item._summary = true;
-                    return item;
-                });
+                talentIndex = (data.rows || []).map(normalizeTalentSummary);
                 db = talentIndex.slice();
                 talentPageJobs = data.jobs || [];
                 talentIndexLoaded = true;
-                var jobSelect = document.getElementById('fJob');
-                var previousJob = jobSelect.value || '全部';
-                jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
-                jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
+                populateTalentJobFilter();
                 renderDB();
             }).withFailureHandler(function(err) { talentIndexLoading = false; console.error('人才庫載入失敗', err); }).apiGetTalentIndex(authToken);
         }
@@ -2759,7 +2795,7 @@
             handleStatFilterChange(); 
             if (currentStaffTab === 'database') renderDB(); 
             renderFollowUps();
-            lucide.createIcons(); 
+            scheduleLucideIcons(); 
         }
         
         function handleStatFilterChange() {
@@ -3009,6 +3045,10 @@
         }
         
         function resetAndRenderDB() { currentPage = 1; renderDB(); }
+        function debounceTalentSearch() {
+            if (talentSearchTimer) clearTimeout(talentSearchTimer);
+            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; resetAndRenderDB(); }, 250);
+        }
         function changePage(delta) { currentPage += delta; renderDB(); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
         
         function clearAllFilters() {
@@ -3045,6 +3085,22 @@
 
                 return matchSearch && matchJob && matchCity && matchDist && matchRes && matchLvl; 
             });
+        }
+
+        function normalizeTalentSummary(item) {
+            var parsed = parseAddress(item['通訊地址'] || '');
+            item._city = parsed.city || '未註明';
+            item._district = parsed.district || '未註明';
+            item._summary = true;
+            return item;
+        }
+
+        function populateTalentJobFilter() {
+            var jobSelect = document.getElementById('fJob');
+            if (!jobSelect) return;
+            var previousJob = jobSelect.value || '全部';
+            jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
+            jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
         }
 
         // --- 人才資料庫名冊一鍵匯出 CSV（支援 Excel UTF-8）---
@@ -3221,7 +3277,7 @@
             download.classList.add('hidden');
             status.classList.remove('hidden');
             document.getElementById('candidatePhotoViewerTitle').textContent = name + '｜正在載入完整照片...';
-            lucide.createIcons();
+            scheduleLucideIcons();
             function showFullPhoto(photo) {
                 if (!photoDataUrl(photo)) return false;
                 var mimeType = photo.mimeType || 'image/jpeg';
@@ -3327,7 +3383,7 @@
                 var hasCommunity = !!String(site.community || '').trim();
                 return '<div class="bg-white border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800 truncate">' + escapeHtml(site.community || '未命名案場') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1 truncate">' + escapeHtml(site.position || '未填職位') + '・' + escapeHtml(site.location || '案場地址未完整設定') + '</p></div>' + (hasCommunity ? '<button type="button" onclick="openJobRoute(' + index + ')" class="shrink-0 text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg">搜尋案場</button>' : '<span class="shrink-0 text-[10px] font-bold text-slate-300">無案場名稱</span>') + '</div>';
             }).join('');
-            lucide.createIcons();
+            scheduleLucideIcons();
         }
 
         function loadOpenJobMapSites(candidateRowId) {
@@ -3568,7 +3624,7 @@
             var originalContent = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> <span class="hidden sm:inline">產出中...</span>';
-            lucide.createIcons();
+            scheduleLucideIcons();
 
             google.script.run.withSuccessHandler(function(response) {
                 var res = JSON.parse(response);
@@ -3578,7 +3634,7 @@
                     btn.className = "col-span-1 bg-emerald-500 text-white rounded-2xl py-5 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg shadow-emerald-200";
                     btn.innerHTML = '<i data-lucide="download" class="w-5 h-5"></i> <span class="hidden sm:inline">點擊下載 Word</span><span class="sm:hidden">下載</span>';
                     btn.onclick = function() { window.open(res.url, '_blank'); };
-                    lucide.createIcons();
+                    scheduleLucideIcons();
                 } else if (String(res.message || '').indexOf('登入') > -1) {
                     handleSessionExpired(res.message);
                     btn.innerHTML = originalContent;
@@ -3587,7 +3643,7 @@
                     alert("產出失敗: " + (res.message || "未知錯誤"));
                     btn.innerHTML = originalContent;
                     btn.disabled = false;
-                    lucide.createIcons();
+                    scheduleLucideIcons();
                 }
             }).apiGenerateResume(authToken, rowId);
         }
@@ -3898,6 +3954,7 @@
         }
 
         function loadStaffTabData(tab) {
+            if (bootstrapLoading) return;
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
                 if (talentIndexLoaded) renderDB();
@@ -4055,7 +4112,7 @@
                     renderBranchCheckboxes([]);
                 }
                 document.getElementById('account-modal').classList.remove('hidden');
-                lucide.createIcons();
+                scheduleLucideIcons();
             });
         }
 
@@ -4134,7 +4191,7 @@
                 if (trainingStatsLoaded) { renderTrainingMonthOptions(); renderTrainingStats(); }
                 else fetchTrainingData();
             }
-            lucide.createIcons();
+            scheduleLucideIcons();
         }
 
         function renderTrainingMonthOptions() {
@@ -4226,7 +4283,7 @@
             document.getElementById('trainingList').innerHTML = listHtml;
             
             drawTrainingChart(filtered, selectedMonth);
-            lucide.createIcons(); 
+            scheduleLucideIcons(); 
         }
 
         function updateTrainingChart() {
