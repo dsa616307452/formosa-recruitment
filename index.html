@@ -25,7 +25,7 @@
         .staff-view-enter { animation: staffViewEnter 180ms cubic-bezier(.22,.8,.32,1) both; }
         @keyframes staffViewEnter { from { opacity: .01; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
         #app-staff > nav button { transition-property: color, background-color, transform; transition-duration: 160ms; transition-timing-function: ease-out; }
-        #view-database, #view-jobs, #view-today, #view-followups, #view-stats, #view-training, #view-accounts { will-change: opacity, transform; }
+        #view-hub, #view-database, #view-jobs, #view-today, #view-followups, #view-stats, #view-training, #view-accounts { will-change: opacity, transform; }
         #modal, #job-modal { will-change: transform; }
         #dbList > *, #todayGrid > *, #jobsList > * { transition-property: transform, background-color, border-color, box-shadow, opacity; transition-duration: 160ms; transition-timing-function: ease-out; }
         @media (prefers-reduced-motion: reduce) {
@@ -129,7 +129,7 @@
     <div id="login-modal" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-6">
         <div class="bg-white w-full max-w-xs rounded-3xl p-6 shadow-2xl transform transition-all scale-100">
             <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-[1000] italic text-slate-900">幹部驗證</h3><button onclick="hideLogin()" class="text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button></div>
-            <div class="space-y-4"><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">個人 Email</label><input type="email" id="loginEmail" autocomplete="username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-slate-900 transition-colors" placeholder="name@gmail.com"></div><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Password</label><input type="password" id="loginPass" autocomplete="current-password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-black tracking-widest outline-none focus:border-slate-900 transition-colors" placeholder="••••••••••"></div><label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 cursor-pointer"><input id="loginRememberEmail" type="checkbox" class="w-4 h-4 accent-slate-900">記住帳號</label><label class="flex items-start gap-2 text-[11px] font-bold text-slate-700 cursor-pointer"><input id="loginKeepSignedIn" type="checkbox" class="w-4 h-4 mt-0.5 accent-slate-900"><span>保持登入<span class="block text-[9px] text-slate-400 mt-0.5">限個人裝置使用；登出、帳號停用或重設密碼後失效。</span></span></label><button onclick="verifyPassword()" id="btnLogin" class="w-full btn-primary text-white rounded-2xl py-4 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"><i data-lucide="unlock" class="w-4 h-4"></i> 登入系統</button><p class="text-[10px] text-center text-slate-400">帳號請洽系統管理員建立。</p><button type="button" onclick="showRegister()" class="w-full text-[9px] text-slate-300">首次設定管理員</button></div>
+            <div class="space-y-4"><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">個人 Email</label><input type="email" id="loginEmail" autocomplete="username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-slate-900 transition-colors" placeholder="name@gmail.com"></div><div><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Password</label><input type="password" id="loginPass" autocomplete="current-password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-black tracking-widest outline-none focus:border-slate-900 transition-colors" placeholder="••••••••••"></div><label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 cursor-pointer"><input id="loginRememberEmail" type="checkbox" class="w-4 h-4 accent-slate-900">記住帳號</label><label class="flex items-start gap-2 text-[11px] font-bold text-slate-700"><input id="loginKeepSignedIn" type="checkbox" checked class="w-4 h-4 mt-0.5 accent-slate-900" aria-describedby="loginKeepSignedInHelp"><span>保持登入<span id="loginKeepSignedInHelp" class="block text-[9px] text-slate-400 mt-0.5">此裝置會自動還原登入；不會保存密碼。登出、帳號停用或重設密碼後失效。</span></span></label><button onclick="verifyPassword()" id="btnLogin" class="w-full btn-primary text-white rounded-2xl py-4 font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"><i data-lucide="unlock" class="w-4 h-4"></i> 登入系統</button><p class="text-[10px] text-center text-slate-400">帳號請洽系統管理員建立。</p><button type="button" onclick="showRegister()" class="w-full text-[9px] text-slate-300">首次設定管理員</button></div>
         </div>
     </div>
 
@@ -459,6 +459,12 @@
 
         <main class="flex-1 pb-32 px-5 pt-6 no-scrollbar overflow-y-auto">
             <div id="errorBox" class="hidden bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold mb-4 whitespace-pre-wrap"></div>
+
+            <!-- View: Feature hub -->
+            <div id="view-hub" class="hidden space-y-6">
+                <div><p class="text-[10px] font-black text-indigo-500 uppercase tracking-[0.24em] mb-2">FORMOSA 招募管理</p><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">功能大廳</h2><p class="mt-2 text-sm font-bold text-slate-400">選擇要處理的工作；常用資料正在背景準備中。</p></div>
+                <div id="featureHubGrid" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
+            </div>
             
             <!-- View: Today -->
             <div id="view-today" class="space-y-6"><div class="flex justify-between items-end"><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">今日待辦</h2><span id="currentDateDisplay" class="text-[10px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase italic">--</span></div><div id="todayGrid" class="grid gap-4"></div></div>
@@ -1289,16 +1295,19 @@
         var db = []; 
         var fullDataLoaded = false;
         var fullDataLoading = false;
-        var talentIndex = [];
         var talentIndexLoaded = false;
+        var talentIndexLoading = false;
+        var talentPageLoading = false;
         var talentPageRows = [];
         var talentPageTotal = 0;
         var talentPageJobs = [];
         var todayCandidates = [];
         var todayLoaded = false;
+        var todayLoading = false;
         var candidateDetailCache = {};
         var allJobs = []; 
         var jobsLoaded = false;
+        var jobsLoading = false;
         var trainingDB = []; 
         var trainingStatsLoaded = false;
         var showClosedJobs = false; 
@@ -1312,7 +1321,7 @@
         var isSubmitting = false;
         var currentStatTab = 'interview'; 
         var currentCandidateStep = 1;
-        var currentStaffTab = 'today';
+        var currentStaffTab = 'hub';
         var staffTabSwitchToken = 0;
         var candidateModalRenderToken = 0;
         var lucideRenderQueued = false;
@@ -1423,6 +1432,7 @@
         }
 
         // 正式網址只代表要開啟的幹部畫面；實際可用功能仍由登入後的權限決定。
+        var STAFF_HUB_ROUTE = '/staff';
         var STAFF_ROUTE_BY_TAB = {
             today: '/staff/today',
             jobs: '/staff/jobs',
@@ -1452,6 +1462,15 @@
             return STAFF_TAB_BY_ROUTE[path] || null;
         }
 
+        function isRequestedFeatureHubRoute() {
+            var fallbackRoute = new URLSearchParams(window.location.search).get('route');
+            var path = fallbackRoute || window.location.pathname;
+            var basePath = getGitHubPagesBasePath();
+            if (basePath && path.indexOf(basePath + '/') === 0) path = path.substring(basePath.length);
+            path = '/' + String(path || '').replace(/^\/+|\/+$/g, '');
+            return path === STAFF_HUB_ROUTE;
+        }
+
         function setStaffRoute(tab, replace) {
             var route = STAFF_ROUTE_BY_TAB[tab];
             if (!route) return;
@@ -1460,16 +1479,24 @@
             window.history[replace ? 'replaceState' : 'pushState']({ staffTab: tab }, '', target);
         }
 
+        function setFeatureHubRoute(replace) {
+            var target = getGitHubPagesBasePath() + STAFF_HUB_ROUTE;
+            if (window.location.pathname === target && !window.location.search) return;
+            window.history[replace ? 'replaceState' : 'pushState']({ staffTab: 'hub' }, '', target);
+        }
+
+        function canUseStaffTab(tab) {
+            var button = document.getElementById('btn-' + tab);
+            return !!button && !button.classList.contains('hidden');
+        }
+
         function openRequestedStaffRoute() {
             if (!currentUser) return;
             var tab = getRequestedStaffRoute();
-            var button = tab && document.getElementById('btn-' + tab);
-            if (!button || button.classList.contains('hidden')) tab = null;
-            if (!tab) {
-                tab = currentStaffTab;
-                setStaffRoute(tab, true);
-            }
-            switchTab(tab, { fromRoute: true });
+            if (tab && canUseStaffTab(tab)) { switchTab(tab, { fromRoute: true }); return; }
+            if (isRequestedFeatureHubRoute() || !tab) { switchTab('hub', { fromRoute: true }); return; }
+            // 指定網址沒有權限時，回到只顯示可用功能的大廳，不能以網址略過權限。
+            switchTab('hub');
         }
 
         function handleStaffRouteChange() {
@@ -1482,8 +1509,7 @@
             initAddressSelectors();
             setupFormAutoSave();
             window.addEventListener('popstate', handleStaffRouteChange);
-            var requestedTab = getRequestedStaffRoute();
-            if (requestedTab) showLogin();
+            if (getRequestedStaffRoute() || isRequestedFeatureHubRoute()) showLogin();
             restorePersistentStaffSession();
         };
 
@@ -1521,8 +1547,8 @@
             persistentSessionRestoreAttempts = 0;
             authToken = token;
             currentUser = user || null;
-            db = []; fullDataLoaded = false; fullDataLoading = false; talentIndex = []; talentIndexLoaded = false; talentPageRows = []; talentPageTotal = 0;
-            todayCandidates = []; todayLoaded = false; allJobs = []; jobsLoaded = false;
+            db = []; fullDataLoaded = false; fullDataLoading = false; talentIndexLoaded = false; talentIndexLoading = false; talentPageLoading = false; talentPageRows = []; talentPageTotal = 0;
+            todayCandidates = []; todayLoaded = false; todayLoading = false; allJobs = []; jobsLoaded = false; jobsLoading = false;
             trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
             candidateDetailCache = {};
             document.getElementById('login-modal').classList.add('hidden');
@@ -1531,8 +1557,17 @@
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
-            var permissions = (currentUser && currentUser.permissions) || [];
-            if (currentUser && (currentUser.isAdmin || permissions.some(function(key) { return ['today', 'talent', 'analytics'].indexOf(key) > -1; }))) fetchData();
+            preloadPrimaryStaffData();
+        }
+
+        // 首屏只預載常用入口資料；完整人才資料與分析資料必須進入功能後才讀取。
+        function preloadPrimaryStaffData() {
+            setTimeout(function() {
+                if (!currentUser) return;
+                if (canUseStaffTab('today')) fetchTodayCandidates();
+                if (canUseStaffTab('jobs')) fetchJobs();
+                if (canUseStaffTab('database')) fetchTalentIndex();
+            }, 0);
         }
 
         function restorePersistentStaffSession() {
@@ -2234,6 +2269,8 @@
 
         function fetchJobs(force) {
             if (jobsLoaded && !force) { renderJobs(); return; }
+            if (jobsLoading) return;
+            jobsLoading = true;
             var list = document.getElementById('jobsList');
             list.innerHTML = '<p class="text-center text-slate-300 italic font-black text-sm py-10">更新資料中...</p>';
             google.script.run.withSuccessHandler(function(res) {
@@ -2245,8 +2282,9 @@
                 }
                 allJobs = jobs; 
                 jobsLoaded = true;
+                jobsLoading = false;
                 renderJobs();
-            }).apiGetJobs(authToken);
+            }).withFailureHandler(function(err) { jobsLoading = false; console.error('職缺載入失敗', err); }).apiGetJobs(authToken);
         }
 
         var selectedJobManager = '全部'; // '全部' 或某個主管姓名
@@ -2525,7 +2563,9 @@
             var email = document.getElementById('loginEmail').value.trim();
             var input = document.getElementById('loginPass').value; 
             var rememberEmail = document.getElementById('loginRememberEmail').checked;
-            var keepSignedIn = document.getElementById('loginKeepSignedIn').checked;
+            // 所有裝置預設保持登入：僅保存可撤銷的工作階段憑證，絕不保存密碼。
+            var keepSignedIn = true;
+            document.getElementById('loginKeepSignedIn').checked = true;
             var btn = document.getElementById('btnLogin'); 
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin w-4 h-4"></i> 驗證中...'; 
@@ -2534,7 +2574,7 @@
                 if (result.status === 'success') { 
                     if (rememberEmail) writeLocalValue(STAFF_REMEMBERED_EMAIL_KEY, email);
                     else removeLocalValue(STAFF_REMEMBERED_EMAIL_KEY);
-                    if (result.persistent === true && keepSignedIn) writeLocalValue(STAFF_PERSISTENT_SESSION_KEY, result.token);
+                    if (result.persistent === true) writeLocalValue(STAFF_PERSISTENT_SESSION_KEY, result.token);
                     else removeLocalValue(STAFF_PERSISTENT_SESSION_KEY);
                     activateStaffSession(result.token, result.user || null);
                 } else { 
@@ -2638,39 +2678,57 @@
 
         function fetchTalentIndex(force) {
             if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
-            if (talentIndexLoaded && !force) { renderDB(); return; }
-            document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">載入人才資料中...</div>';
+            if (talentIndexLoaded && !force) return;
+            if (talentIndexLoading) return;
+            talentIndexLoading = true;
             google.script.run.withSuccessHandler(function(res) {
                 var data;
-                try { data = JSON.parse(res); } catch (e) { console.error('人才庫資料解析失敗', e); return; }
-                if (!data || data.status !== 'success') { if (data && data.message) alert(data.message); return; }
-                talentIndex = (data.rows || []).map(function(item) {
-                    var parsed = parseAddress(item['通訊地址'] || '');
-                    item._city = parsed.city || '未註明';
-                    item._district = parsed.district || '未註明';
-                    return item;
-                });
+                try { data = JSON.parse(res); } catch (e) { talentIndexLoading = false; console.error('人才庫索引解析失敗', e); return; }
+                if (!data || data.status !== 'success') { talentIndexLoading = false; if (data && data.message) alert(data.message); return; }
                 talentPageJobs = data.jobs || [];
                 talentIndexLoaded = true;
+                talentIndexLoading = false;
                 var jobSelect = document.getElementById('fJob');
                 var previousJob = jobSelect.value || '全部';
                 jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
                 jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
+            }).withFailureHandler(function(err) { talentIndexLoading = false; console.error('人才庫索引載入失敗', err); }).apiGetTalentIndex(authToken);
+        }
+
+        function fetchTalentPage(page, force) {
+            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            if (talentPageLoading) return;
+            talentPageLoading = true;
+            var requestedPage = Math.max(Number(page) || 1, 1);
+            document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">載入人才資料中...</div>';
+            var filters = getTalentFilters(requestedPage);
+            google.script.run.withSuccessHandler(function(res) {
+                var data;
+                try { data = JSON.parse(res); } catch (e) { talentPageLoading = false; console.error('人才分頁資料解析失敗', e); return; }
+                if (!data || data.status !== 'success') { talentPageLoading = false; if (data && data.message) alert(data.message); return; }
+                talentPageRows = data.rows || [];
+                talentPageTotal = Number(data.total) || 0;
+                currentPage = Number(data.page) || requestedPage;
+                if (data.jobs && data.jobs.length) talentPageJobs = data.jobs;
+                talentPageLoading = false;
                 renderDB();
-            }).withFailureHandler(function(err) { console.error('人才庫載入失敗', err); }).apiGetTalentIndex(authToken);
+            }).withFailureHandler(function(err) { talentPageLoading = false; console.error('人才分頁資料載入失敗', err); }).apiGetTalentPage(authToken, filters);
         }
 
         function fetchTodayCandidates(force) {
             if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('today') === -1 && (currentUser.permissions || []).indexOf('talent') === -1)) return;
             if (todayLoaded && !force) { renderToday(); return; }
+            if (todayLoading) return;
+            todayLoading = true;
             google.script.run.withSuccessHandler(function(res) {
                 var data;
-                try { data = JSON.parse(res); } catch (e) { return; }
-                if (!data || data.status !== 'success') { if (data && String(data.message || '').indexOf('登入') > -1) handleSessionExpired(data.message); return; }
+                try { data = JSON.parse(res); } catch (e) { todayLoading = false; return; }
+                if (!data || data.status !== 'success') { todayLoading = false; if (data && String(data.message || '').indexOf('登入') > -1) handleSessionExpired(data.message); return; }
                 todayCandidates = data.rows || [];
                 todayLoaded = true;
+                todayLoading = false;
                 renderToday();
-            }).withFailureHandler(function(err) { console.error('今日待辦載入失敗', err); }).apiGetTodayCandidates(authToken);
+            }).withFailureHandler(function(err) { todayLoading = false; console.error('今日待辦載入失敗', err); }).apiGetTodayCandidates(authToken);
         }
         
         function updateUI() { 
@@ -2950,8 +3008,8 @@
             });
         }
         
-        function resetAndRenderDB() { currentPage = 1; renderDB(); }
-        function changePage(delta) { currentPage += delta; renderDB(); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
+        function resetAndRenderDB() { currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
+        function changePage(delta) { fetchTalentPage(currentPage + delta, true); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
         
         function clearAllFilters() {
             document.getElementById('dbSearch').value = '';
@@ -2961,32 +3019,6 @@
             document.getElementById('fResult').value = '全部';
             document.getElementById('fLevel').value = '全部';
             resetAndRenderDB();
-        }
-
-        // --- 人才資料庫模組：篩選、分頁與匯出共用同一套條件 ---
-        function getFilteredCandidates() {
-            var search = document.getElementById('dbSearch').value.toLowerCase(); 
-            var jobFilter = document.getElementById('fJob').value; 
-            var cityFilter = document.getElementById('fCity').value;
-            var distFilter = document.getElementById('fDistrict').value; 
-            var resFilter = document.getElementById('fResult').value;
-            var lvlFilter = document.getElementById('fLevel').value;
-
-            return db.filter(function(t) { 
-                var tPos = t._position || t["應徵職位"] || "";
-                var res = t._result || t["面試結果"] || "尚未面試";
-                var lvl = t["潛力等級"] || t._level || "";
-                var addr = (t["通訊地址"] || "").toLowerCase();
-
-                var matchSearch = (t["姓名"] || "").toLowerCase().indexOf(search) > -1 || (t["電話"] || "").indexOf(search) > -1 || addr.indexOf(search) > -1; 
-                var matchJob = (jobFilter === '全部' || tPos === jobFilter); 
-                var matchCity = (cityFilter === '全部' || t._city === cityFilter);
-                var matchDist = (distFilter === '全部' || t._district === distFilter); 
-                var matchRes = (resFilter === '全部' || res === resFilter);
-                var matchLvl = (lvlFilter === '全部' || lvl.indexOf(lvlFilter.substring(0, 1)) === 0 || lvl === lvlFilter);
-
-                return matchSearch && matchJob && matchCity && matchDist && matchRes && matchLvl; 
-            });
         }
 
         // --- 人才資料庫名冊一鍵匯出 CSV（支援 Excel UTF-8）---
@@ -3035,8 +3067,6 @@
         }
 
         function renderDB() { 
-            var filtered = getFilteredCandidates();
-            talentPageTotal = filtered.length;
             document.getElementById('dbResultCount').innerText = '共 ' + talentPageTotal + ' 位符合條件';
             var totalPages = Math.ceil(talentPageTotal / pageSize) || 1; 
             if(currentPage > totalPages) currentPage = totalPages; 
@@ -3046,7 +3076,7 @@
             document.getElementById('prevBtn').disabled = currentPage === 1; 
             document.getElementById('nextBtn').disabled = currentPage === totalPages; 
             
-            var pagedData = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+            var pagedData = talentPageRows;
             if (pagedData.length === 0) {
                 document.getElementById('dbList').innerHTML = '<div class="py-16 text-center border-2 border-dashed border-slate-100 rounded-3xl text-slate-300 italic font-black text-xs">查無符合條件的人才資料</div>';
                 return;
@@ -3335,9 +3365,13 @@
                 fullDataLoaded = false;
                 fullDataLoading = false;
                 talentIndexLoaded = false;
+                talentPageRows = [];
+                talentPageTotal = 0;
                 todayLoaded = false;
                 fetchTodayCandidates(true);
-                fetchData(true);
+                fetchTalentIndex(true);
+                if (currentStaffTab === 'database') fetchTalentPage(1, true);
+                if (currentStaffTab === 'stats' || currentStaffTab === 'followups') fetchData(true);
             }).withFailureHandler(function(error) {
                 alert('更正失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
             }).apiUpdateCandidateBranch(authToken, rowId, targetBranch);
@@ -3800,28 +3834,52 @@
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
             else if (currentStaffTab === 'training') fetchTrainingRoster(true);
             else if (currentStaffTab === 'followups') fetchData(true);
-            else if (currentStaffTab === 'database') fetchData(true);
+            else if (currentStaffTab === 'database') fetchTalentPage(currentPage, true);
             else fetchTodayCandidates(true);
             if (window.__FORMOSA_GAS_HTTP_BRIDGE__) setTimeout(function() { if (manualRefreshRequestCount === 0) finishManualRefresh(); }, 0);
         }
         
+        var FEATURE_HUB_ITEMS = [
+            { tab: 'today', icon: 'calendar-check-2', title: '今日待辦', description: '查看今日面試與待處理事項' },
+            { tab: 'jobs', icon: 'briefcase-business', title: '職缺', description: '管理招募中的職缺需求' },
+            { tab: 'database', icon: 'database', title: '人才庫', description: '搜尋與篩選人才資料' },
+            { tab: 'followups', icon: 'calendar-clock', title: '追蹤', description: '安排後續聯絡與提醒' },
+            { tab: 'stats', icon: 'bar-chart-3', title: '分析', description: '查看招募與面試分析' },
+            { tab: 'training', icon: 'graduation-cap', title: '訓練', description: '查看職前訓練資料' },
+            { tab: 'accounts', icon: 'users-round', title: '帳號', description: '管理使用者與權限' }
+        ];
+
+        function renderFeatureHub() {
+            var grid = document.getElementById('featureHubGrid');
+            if (!grid) return;
+            var items = FEATURE_HUB_ITEMS.filter(function(item) { return canUseStaffTab(item.tab); });
+            grid.innerHTML = items.length ? items.map(function(item) {
+                return '<button type="button" onclick="switchTab(\'' + item.tab + '\')" class="group text-left bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:border-indigo-200 hover:shadow-md active:scale-[0.98] transition-all">' +
+                    '<span class="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 inline-flex items-center justify-center mb-5"><i data-lucide="' + item.icon + '" class="w-5 h-5"></i></span>' +
+                    '<span class="block text-base font-black text-slate-900">' + item.title + '</span><span class="mt-1 block text-[11px] leading-5 font-bold text-slate-400">' + item.description + '</span>' +
+                    '<span class="mt-4 inline-flex items-center gap-1 text-[10px] font-black text-indigo-500">開啟 <i data-lucide="arrow-right" class="w-3 h-3"></i></span></button>';
+            }).join('') : '<div class="col-span-full py-16 text-center text-slate-400 font-bold">目前尚未獲得可用功能權限，請聯絡系統管理員。</div>';
+            scheduleLucideIcons();
+        }
+
         function switchTab(tab, options) { 
             options = options || {};
-            if (!options.fromRoute) setStaffRoute(tab, false);
+            if (tab === 'hub') { if (!options.fromRoute) setFeatureHubRoute(false); }
+            else if (!options.fromRoute) setStaffRoute(tab, false);
             currentStaffTab = tab;
             var switchToken = ++staffTabSwitchToken;
             var activeView = null;
-            ['today', 'database', 'followups', 'stats', 'jobs', 'training', 'accounts'].forEach(function(t) { 
+            ['hub', 'today', 'database', 'followups', 'stats', 'jobs', 'training', 'accounts'].forEach(function(t) { 
                 var view = document.getElementById('view-' + t); 
                 var btn = document.getElementById('btn-' + t); 
                 if (t === tab) { 
                     view.classList.remove('hidden'); 
                     view.classList.remove('staff-view-enter');
                     activeView = view;
-                    btn.classList.add('tab-active'); 
+                    if (btn) btn.classList.add('tab-active'); 
                 } else { 
                     view.classList.add('hidden'); 
-                    btn.classList.remove('tab-active'); 
+                    if (btn) btn.classList.remove('tab-active'); 
                 } 
             }); 
             // 先把頁籤切換畫面交給瀏覽器繪製，再進行卡片與資料處理。
@@ -3836,13 +3894,11 @@
         }
 
         function loadStaffTabData(tab) {
+            if(tab === 'hub') { renderFeatureHub(); return; }
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
-                if (fullDataLoaded) renderDB();
-                else {
-                    document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">人才資料同步中，完成後會自動顯示。</div>';
-                    fetchData();
-                }
+                fetchTalentIndex();
+                fetchTalentPage(currentPage);
                 return;
             }
             if(tab === 'jobs') { fetchJobs(); return; }
@@ -3899,8 +3955,8 @@
                 } else statBranchFilter.classList.add('hidden');
             }
             document.getElementById('followUpReminderAdmin').classList.toggle('hidden', !(user && (user.isAdmin || allowedKeys.indexOf('accounts') > -1)));
+            renderFeatureHub();
             if (firstTab) {
-                currentStaffTab = firstTab;
                 openRequestedStaffRoute();
             }
         }
