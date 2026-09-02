@@ -1371,10 +1371,68 @@
             });
         }
 
+        // 正式網址只代表要開啟的幹部畫面；實際可用功能仍由登入後的權限決定。
+        var STAFF_ROUTE_BY_TAB = {
+            today: '/staff/today',
+            jobs: '/staff/jobs',
+            database: '/staff/talents',
+            followups: '/staff/followups',
+            stats: '/staff/analytics',
+            training: '/staff/training',
+            accounts: '/staff/accounts'
+        };
+        var STAFF_TAB_BY_ROUTE = Object.keys(STAFF_ROUTE_BY_TAB).reduce(function(map, tab) {
+            map[STAFF_ROUTE_BY_TAB[tab]] = tab;
+            return map;
+        }, {});
+
+        function getGitHubPagesBasePath() {
+            if (!/\.github\.io$/i.test(window.location.hostname)) return '';
+            var firstSegment = window.location.pathname.split('/').filter(Boolean)[0];
+            return firstSegment ? '/' + firstSegment : '';
+        }
+
+        function getRequestedStaffRoute() {
+            var fallbackRoute = new URLSearchParams(window.location.search).get('route');
+            var path = fallbackRoute || window.location.pathname;
+            var basePath = getGitHubPagesBasePath();
+            if (basePath && path.indexOf(basePath + '/') === 0) path = path.substring(basePath.length);
+            path = '/' + String(path || '').replace(/^\/+|\/+$/g, '');
+            return STAFF_TAB_BY_ROUTE[path] || null;
+        }
+
+        function setStaffRoute(tab, replace) {
+            var route = STAFF_ROUTE_BY_TAB[tab];
+            if (!route) return;
+            var target = getGitHubPagesBasePath() + route;
+            if (window.location.pathname === target && !window.location.search) return;
+            window.history[replace ? 'replaceState' : 'pushState']({ staffTab: tab }, '', target);
+        }
+
+        function openRequestedStaffRoute() {
+            if (!currentUser) return;
+            var tab = getRequestedStaffRoute();
+            var button = tab && document.getElementById('btn-' + tab);
+            if (!button || button.classList.contains('hidden')) tab = null;
+            if (!tab) {
+                tab = currentStaffTab;
+                setStaffRoute(tab, true);
+            }
+            switchTab(tab, { fromRoute: true });
+        }
+
+        function handleStaffRouteChange() {
+            if (!currentUser) return;
+            openRequestedStaffRoute();
+        }
+
         window.onload = function() { 
             lucide.createIcons(); 
             initAddressSelectors();
             setupFormAutoSave();
+            window.addEventListener('popstate', handleStaffRouteChange);
+            var requestedTab = getRequestedStaffRoute();
+            if (requestedTab) showLogin();
             restorePersistentStaffSession();
         };
 
@@ -1869,6 +1927,7 @@
             document.getElementById('btn-accounts').classList.add('hidden');
             var btn = document.getElementById('submitBtn');
             if(btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-5 h-5"></i> 提交資料 Submit'; }
+            if (window.history && window.location.pathname !== getGitHubPagesBasePath() + '/') window.history.replaceState({}, '', getGitHubPagesBasePath() + '/');
         }
 
         function initAddressSelectors() {
@@ -3693,7 +3752,9 @@
             else fetchTodayCandidates(true);
         }
         
-        function switchTab(tab) { 
+        function switchTab(tab, options) { 
+            options = options || {};
+            if (!options.fromRoute) setStaffRoute(tab, false);
             currentStaffTab = tab;
             var switchToken = ++staffTabSwitchToken;
             var activeView = null;
@@ -3785,7 +3846,10 @@
                 } else statBranchFilter.classList.add('hidden');
             }
             document.getElementById('followUpReminderAdmin').classList.toggle('hidden', !(user && (user.isAdmin || allowedKeys.indexOf('accounts') > -1)));
-            if (firstTab) switchTab(firstTab);
+            if (firstTab) {
+                currentStaffTab = firstTab;
+                openRequestedStaffRoute();
+            }
         }
 
         function fetchAccounts() {

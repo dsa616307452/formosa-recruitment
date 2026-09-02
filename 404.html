@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>正在開啟 FORMOSA 招募系統</title>
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var basePath = '';
+      if (/\.github\.io$/i.test(window.location.hostname)) {
+        var firstSegment = path.split('/').filter(Boolean)[0];
+        basePath = firstSegment ? '/' + firstSegment : '';
+      }
+      var route = path.indexOf(basePath + '/') === 0 ? path.substring(basePath.length) : path;
+      var target = basePath + '/?route=' + encodeURIComponent(route || '/') + window.location.search + window.location.hash;
+      window.location.replace(target);
+    }());
+  </script>
+</head>
+<body>正在開啟 FORMOSA 招募系統…</body>
+</html>
