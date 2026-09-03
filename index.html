@@ -1494,9 +1494,9 @@
             if (!currentUser) return;
             var tab = getRequestedStaffRoute();
             if (tab && canUseStaffTab(tab)) { switchTab(tab, { fromRoute: true }); return; }
-            if (isRequestedFeatureHubRoute() || !tab) { switchTab('hub', { fromRoute: true }); return; }
-            // 指定網址沒有權限時，回到只顯示可用功能的大廳，不能以網址略過權限。
-            switchTab('hub');
+            // 未指定、無效或沒有權限的網址一律正規化為功能大廳，不能以網址略過權限。
+            setFeatureHubRoute(true);
+            switchTab('hub', { fromRoute: true });
         }
 
         function handleStaffRouteChange() {
@@ -1557,17 +1557,6 @@
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
-            preloadPrimaryStaffData();
-        }
-
-        // 首屏只預載常用入口資料；完整人才資料與分析資料必須進入功能後才讀取。
-        function preloadPrimaryStaffData() {
-            setTimeout(function() {
-                if (!currentUser) return;
-                if (canUseStaffTab('today')) fetchTodayCandidates();
-                if (canUseStaffTab('jobs')) fetchJobs();
-                if (canUseStaffTab('database')) fetchTalentIndex();
-            }, 0);
         }
 
         function restorePersistentStaffSession() {
