@@ -490,7 +490,7 @@
                 <div class="space-y-3 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
                     <div class="relative">
                         <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="dbSearch" oninput="resetAndRenderDB()" placeholder="搜尋姓名、電話或地址關鍵字（如：南屯）..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold outline-none focus:bg-white focus:border-slate-300 transition-all">
+                        <input type="text" id="dbSearch" oninput="debounceTalentSearch()" placeholder="搜尋姓名、電話或地址關鍵字（如：南屯）..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold outline-none focus:bg-white focus:border-slate-300 transition-all">
                     </div>
                     
                     <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
@@ -543,7 +543,7 @@
             <div id="view-followups" class="hidden space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                     <div><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">追蹤人才</h2><p class="text-xs font-bold text-slate-400 mt-1">依確認期限安排面試後聯繫與到職追蹤</p></div>
-                    <div id="followUpReminderAdmin" class="hidden flex items-center gap-2"><span id="followUpReminderStatus" class="text-[10px] font-black text-slate-400">每日提醒讀取中</span><button onclick="configureFollowUpReminder()" class="bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl">啟用／重設提醒</button></div>
+                    <div id="followUpReminderAdmin" class="hidden flex items-center gap-2"><span id="followUpReminderStatus" class="text-[10px] font-black text-slate-400">每日提醒讀取中</span><button id="followUpReminderRetry" type="button" onclick="loadFollowUpReminderStatus(true)" class="hidden text-xs underline">重試</button><button onclick="configureFollowUpReminder()" class="bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl">啟用／重設提醒</button></div>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
                     <div class="stat-card"><p class="text-[9px] font-black text-rose-400 tracking-widest">已逾期</p><p id="followUpOverdueCount" class="text-2xl font-black text-rose-500">0</p></div>
@@ -551,7 +551,9 @@
                     <div class="stat-card"><p class="text-[9px] font-black text-indigo-400 tracking-widest">未來待追</p><p id="followUpFutureCount" class="text-2xl font-black text-indigo-500">0</p></div>
                 </div>
                 <div class="flex flex-wrap gap-2" id="followUpFilters"><button data-followup-filter="all" onclick="setFollowUpFilter('all')" class="followup-filter bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-full">全部</button><button data-followup-filter="mine" onclick="setFollowUpFilter('mine')" class="followup-filter bg-white border border-slate-200 text-slate-500 text-[10px] font-black px-4 py-2 rounded-full">我的追蹤</button><button data-followup-filter="overdue" onclick="setFollowUpFilter('overdue')" class="followup-filter bg-white border border-slate-200 text-slate-500 text-[10px] font-black px-4 py-2 rounded-full">已逾期</button><button data-followup-filter="today" onclick="setFollowUpFilter('today')" class="followup-filter bg-white border border-slate-200 text-slate-500 text-[10px] font-black px-4 py-2 rounded-full">今天</button></div>
+                <div class="flex flex-wrap items-center gap-3 text-xs"><button type="button" onclick="refreshFollowUps()" class="border rounded-xl px-3 py-2">重新整理追蹤</button><button data-followup-filter="future" onclick="setFollowUpFilter('future')" class="followup-filter border rounded-full px-4 py-2">未來</button><span id="followUpLoadStatus" role="status" aria-live="polite"></span><button id="followUpRetry" type="button" onclick="refreshFollowUps()" class="hidden underline">重試</button></div>
                 <div id="followUpList" class="space-y-5"></div>
+                <div id="followUpPager" class="hidden flex items-center justify-center gap-4 text-xs"><button id="followUpPrev" type="button" onclick="fetchFollowUpPage(followUpPage - 1)" class="border rounded-xl px-3 py-2 disabled:opacity-40">上一頁</button><span id="followUpPageLabel" aria-live="polite"></span><button id="followUpNext" type="button" onclick="fetchFollowUpPage(followUpPage + 1)" class="border rounded-xl px-3 py-2 disabled:opacity-40">下一頁</button></div>
             </div>
 
             <!-- View: Stats 數據統計 -->
@@ -1061,7 +1063,6 @@
         // 部署後記得把下面這個網址換成你自己 Apps Script 部署的網址
         // （Apps Script 編輯器 -> 部署 -> 管理部署作業 -> 網頁應用程式網址）。
         var GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwMlvypW_9ut67JTlOuy4JbP9C9uuSZz92jMKWLNxMjMFx7cJHbklmKsBE4cRiK1Z7LTw/exec';
-        window.__FORMOSA_GAS_HTTP_BRIDGE__ = true;
 
         function createGasRunner() {
             var successHandler = null;
@@ -1106,6 +1107,7 @@
         google.script = {};
         Object.defineProperty(google.script, 'run', { get: createGasRunner });
         window.google = google;
+        window.__FORMOSA_GAS_HTTP_BRIDGE__ = true;
         // ==========================================================
 
         // --- 全域 HTML 轉義消毒防禦函式 (XSS Protection) ---
@@ -1298,6 +1300,9 @@
         var talentIndexLoaded = false;
         var talentIndexLoading = false;
         var talentPageLoading = false;
+        var talentPageQueuedPage = null;
+        var talentPageFilterRevision = 0;
+        var talentSearchTimer = null;
         var talentPageRows = [];
         var talentPageTotal = 0;
         var talentPageJobs = [];
@@ -1547,10 +1552,12 @@
             persistentSessionRestoreAttempts = 0;
             authToken = token;
             currentUser = user || null;
-            db = []; fullDataLoaded = false; fullDataLoading = false; talentIndexLoaded = false; talentIndexLoading = false; talentPageLoading = false; talentPageRows = []; talentPageTotal = 0;
+            if (talentSearchTimer) clearTimeout(talentSearchTimer);
+            db = []; fullDataLoaded = false; fullDataLoading = false; talentIndexLoaded = false; talentIndexLoading = false; talentPageLoading = false; talentPageQueuedPage = null; talentPageFilterRevision++; talentSearchTimer = null; talentPageRows = []; talentPageTotal = 0;
             todayCandidates = []; todayLoaded = false; todayLoading = false; allJobs = []; jobsLoaded = false; jobsLoading = false;
             trainingDB = []; trainingStatsLoaded = false; trainingRoster = []; trainingMeta = null; trainingRosterLoaded = false;
             candidateDetailCache = {};
+            resetFollowUpState();
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('view-landing').classList.add('hidden');
             document.getElementById('app-staff').classList.remove('hidden');
@@ -1860,6 +1867,121 @@
 
         var followUpAssignees = [];
         var followUpFilter = 'all';
+        var followUpRows = [], followUpPage = 1, followUpTotal = 0;
+        var followUpCounts = { overdue: 0, today: 0, future: 0 };
+        var followUpCache = {}, followUpRequest = null, followUpRevision = 0, followUpLoadedKey = '';
+        var followUpToday = '', followUpReminderRequest = null, followUpReminderAt = 0;
+        var followUpReminderRevision = 0, followUpReminderValue = null;
+        var FOLLOW_UP_CACHE_MS = 45000;
+
+        function resetFollowUpState() {
+            invalidateFollowUpPages();
+            followUpFilter = 'all'; followUpPage = 1; followUpRows = []; followUpTotal = 0;
+            followUpCounts = { overdue: 0, today: 0, future: 0 };
+            followUpLoadedKey = ''; followUpToday = ''; followUpAssignees = [];
+            followUpReminderRevision++;
+            if (followUpReminderRequest) clearTimeout(followUpReminderRequest.timer);
+            followUpReminderRequest = null; followUpReminderAt = 0; followUpReminderValue = null;
+            document.getElementById('followUpList').innerHTML = '';
+            document.getElementById('followUpPager').classList.add('hidden');
+            document.getElementById('followUpLoadStatus').textContent = '';
+            document.getElementById('followUpRetry').classList.add('hidden');
+            document.getElementById('followUpNavBadge').classList.add('hidden');
+            ['Overdue', 'Today', 'Future'].forEach(function(key) { document.getElementById('followUp' + key + 'Count').textContent = '—'; });
+            document.getElementById('followUpReminderStatus').textContent = '每日提醒尚未讀取';
+            document.getElementById('followUpReminderRetry').classList.add('hidden');
+        }
+
+        function invalidateFollowUpPages() {
+            followUpRevision++;
+            if (followUpRequest) clearTimeout(followUpRequest.timer);
+            followUpRequest = null; followUpCache = {};
+        }
+
+        function followUpTodayKey() {
+            return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        }
+
+        function fetchFollowUpPage(page, force) {
+            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            followUpPage = Math.max(1, Number(page) || 1);
+            var today = followUpTodayKey();
+            if (followUpToday && followUpToday !== today) invalidateFollowUpPages();
+            followUpToday = today;
+            var key = followUpFilter + ':' + followUpPage;
+            var cached = followUpCache[key];
+            function applyPage(data) {
+                followUpRows = data.rows; followUpTotal = data.total; followUpCounts = data.counts;
+                followUpPage = data.page; followUpToday = data.today;
+                followUpLoadedKey = followUpFilter + ':' + data.page;
+                if (currentStaffTab === 'followups') renderFollowUps();
+                else followUpLoadedKey = '';
+            }
+            if (!force && cached && Date.now() - cached.at < FOLLOW_UP_CACHE_MS && cached.data.today === today) {
+                // 即使命中快取，也要使上一個分類的回應失效。
+                followUpRevision++;
+                if (followUpRequest) clearTimeout(followUpRequest.timer);
+                followUpRequest = null;
+                applyPage(cached.data);
+                document.getElementById('followUpLoadStatus').textContent = '';
+                document.getElementById('followUpRetry').classList.add('hidden');
+                return;
+            }
+            if (!force && followUpRequest && followUpRequest.key === key) return;
+            if (followUpRequest) clearTimeout(followUpRequest.timer);
+            var revision = ++followUpRevision, token = authToken;
+            var request = { key: key, timer: null };
+            followUpRequest = request;
+            var keepRows = followUpLoadedKey === key;
+            if (!keepRows) {
+                document.getElementById('followUpList').innerHTML = '<div class="py-16 text-center text-slate-400">載入追蹤人才中...</div>';
+                document.getElementById('followUpPager').classList.add('hidden');
+            }
+            document.getElementById('followUpLoadStatus').textContent = keepRows ? '正在更新追蹤資料…' : '正在讀取追蹤資料…';
+            document.getElementById('followUpRetry').classList.add('hidden');
+            function finish(error) {
+                if (revision !== followUpRevision || token !== authToken) return false;
+                clearTimeout(request.timer); followUpRequest = null;
+                document.getElementById('followUpLoadStatus').textContent = error || '';
+                document.getElementById('followUpRetry').classList.toggle('hidden', !error);
+                if (error && !keepRows) document.getElementById('followUpList').innerHTML = '';
+                return true;
+            }
+            request.timer = setTimeout(function() {
+                if (finish('追蹤資料讀取逾時，請重試。')) followUpRevision++;
+            }, 30000);
+            google.script.run.withSuccessHandler(function(res) {
+                if (revision !== followUpRevision || token !== authToken) return;
+                var data;
+                try {
+                    data = JSON.parse(res);
+                    if (!data || data.status !== 'success') throw new Error((data && data.message) || '追蹤資料讀取失敗');
+                    if (!Array.isArray(data.rows) || data.rows.length > 20 || !data.counts || !Number.isInteger(data.total) || data.total < 0 || !Number.isInteger(data.page) || data.page < 1 || !/^\d{4}-\d{2}-\d{2}$/.test(data.today)) throw new Error('追蹤資料格式錯誤');
+                } catch (e) { finish(e.message); return; }
+                if (!finish()) return;
+                // 新回應可能因最後一頁被移除而回到前一頁。
+                followUpCache[followUpFilter + ':' + data.page] = { at: Date.now(), data: data };
+                applyPage(data);
+            }).withFailureHandler(function() { finish('追蹤資料讀取失敗，請重試。'); }).apiGetFollowUpPage(token, { filter: followUpFilter, page: followUpPage, refresh: !!force });
+        }
+
+        function refreshFollowUps() {
+            invalidateFollowUpPages();
+            fetchFollowUpPage(followUpPage, true);
+        }
+
+        function updateSavedFollowUp(candidate) {
+            invalidateFollowUpPages();
+            var index = followUpRows.findIndex(function(item) { return String(item.rowId) === String(candidate.rowId); });
+            if (index !== -1) {
+                if (candidate._result !== '追蹤' || !candidate._followUpDate) followUpRows.splice(index, 1);
+                else followUpRows[index] = Object.assign({}, followUpRows[index], candidate);
+            }
+            if (currentStaffTab === 'followups') {
+                renderFollowUps();
+                fetchFollowUpPage(followUpPage, true);
+            }
+        }
 
         function loadFollowUpAssignees(callback) {
             if (followUpAssignees.length) { if (callback) callback(); return; }
@@ -1995,6 +2117,7 @@
             setCandidateStep(1);
             isSubmitting = false;
             authToken = ''; currentUser = null;
+            resetFollowUpState();
             if (tokenToInvalidate) {
                 clearSavedStaffLogin(true);
                 google.script.run.withFailureHandler(function() {}).apiLogout(tokenToInvalidate);
@@ -2584,6 +2707,7 @@
             clearSavedStaffLogin(false);
             authToken = '';
             currentUser = null;
+            resetFollowUpState();
             document.getElementById('btn-accounts').classList.add('hidden');
             document.getElementById('app-staff').classList.add('hidden');
             document.getElementById('view-landing').classList.remove('hidden');
@@ -2665,6 +2789,15 @@
             };
         }
 
+        function applyTalentPageJobs(jobs) {
+            talentPageJobs = jobs || [];
+            talentIndexLoaded = true;
+            var jobSelect = document.getElementById('fJob');
+            var previousJob = jobSelect.value || '全部';
+            jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
+            jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
+        }
+
         function fetchTalentIndex(force) {
             if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
             if (talentIndexLoaded && !force) return;
@@ -2674,34 +2807,40 @@
                 var data;
                 try { data = JSON.parse(res); } catch (e) { talentIndexLoading = false; console.error('人才庫索引解析失敗', e); return; }
                 if (!data || data.status !== 'success') { talentIndexLoading = false; if (data && data.message) alert(data.message); return; }
-                talentPageJobs = data.jobs || [];
-                talentIndexLoaded = true;
                 talentIndexLoading = false;
-                var jobSelect = document.getElementById('fJob');
-                var previousJob = jobSelect.value || '全部';
-                jobSelect.innerHTML = '<option value="全部">所有職務</option>' + talentPageJobs.map(function(j) { return '<option value="' + escapeHtml(j) + '">' + escapeHtml(j) + '</option>'; }).join('');
-                jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
+                applyTalentPageJobs(data.jobs || []);
             }).withFailureHandler(function(err) { talentIndexLoading = false; console.error('人才庫索引載入失敗', err); }).apiGetTalentIndex(authToken);
         }
 
         function fetchTalentPage(page, force) {
             if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
-            if (talentPageLoading) return;
-            talentPageLoading = true;
             var requestedPage = Math.max(Number(page) || 1, 1);
+            if (talentPageLoading) { talentPageQueuedPage = requestedPage; return; }
+            talentPageLoading = true;
+            var requestRevision = talentPageFilterRevision;
             document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">載入人才資料中...</div>';
             var filters = getTalentFilters(requestedPage);
+            function finishTalentPageLoad() {
+                talentPageLoading = false;
+                if (talentPageQueuedPage !== null) {
+                    var queuedPage = talentPageQueuedPage;
+                    talentPageQueuedPage = null;
+                    fetchTalentPage(queuedPage, true);
+                }
+            }
             google.script.run.withSuccessHandler(function(res) {
                 var data;
-                try { data = JSON.parse(res); } catch (e) { talentPageLoading = false; console.error('人才分頁資料解析失敗', e); return; }
-                if (!data || data.status !== 'success') { talentPageLoading = false; if (data && data.message) alert(data.message); return; }
-                talentPageRows = data.rows || [];
-                talentPageTotal = Number(data.total) || 0;
-                currentPage = Number(data.page) || requestedPage;
-                if (data.jobs && data.jobs.length) talentPageJobs = data.jobs;
-                talentPageLoading = false;
-                renderDB();
-            }).withFailureHandler(function(err) { talentPageLoading = false; console.error('人才分頁資料載入失敗', err); }).apiGetTalentPage(authToken, filters);
+                try { data = JSON.parse(res); } catch (e) { finishTalentPageLoad(); console.error('人才分頁資料解析失敗', e); return; }
+                if (!data || data.status !== 'success') { finishTalentPageLoad(); if (data && data.message) alert(data.message); return; }
+                if (requestRevision === talentPageFilterRevision) {
+                    talentPageRows = data.rows || [];
+                    talentPageTotal = Number(data.total) || 0;
+                    currentPage = Number(data.page) || requestedPage;
+                    applyTalentPageJobs(data.jobs || []);
+                    renderDB();
+                }
+                finishTalentPageLoad();
+            }).withFailureHandler(function(err) { finishTalentPageLoad(); console.error('人才分頁資料載入失敗', err); }).apiGetTalentPage(authToken, filters);
         }
 
         function fetchTodayCandidates(force) {
@@ -2721,7 +2860,7 @@
         }
         
         function updateUI() { 
-            renderToday(); 
+            if (currentStaffTab === 'today') renderToday();
             var distinctMonths = []; var distinctJobs = []; 
             for(var i=0; i<db.length; i++) { 
                 var x = db[i]; 
@@ -2745,9 +2884,8 @@
 
             document.getElementById('fJob').innerHTML = '<option value="全部">所有職務</option>' + distinctJobs.map(function(j){ return '<option value="'+escapeHtml(j)+'">'+escapeHtml(j)+'</option>'; }).join(''); 
             
-            handleStatFilterChange(); 
+            if (currentStaffTab === 'stats') handleStatFilterChange();
             if (currentStaffTab === 'database') renderDB(); 
-            renderFollowUps();
             lucide.createIcons(); 
         }
         
@@ -2997,7 +3135,12 @@
             });
         }
         
-        function resetAndRenderDB() { currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
+        function debounceTalentSearch() {
+            talentPageFilterRevision++;
+            if (talentSearchTimer) clearTimeout(talentSearchTimer);
+            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; resetAndRenderDB(); }, 350);
+        }
+        function resetAndRenderDB() { if (talentSearchTimer) { clearTimeout(talentSearchTimer); talentSearchTimer = null; } talentPageFilterRevision++; currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
         function changePage(delta) { fetchTalentPage(currentPage + delta, true); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
         
         function clearAllFilters() {
@@ -3358,9 +3501,11 @@
                 talentPageTotal = 0;
                 todayLoaded = false;
                 fetchTodayCandidates(true);
-                fetchTalentIndex(true);
                 if (currentStaffTab === 'database') fetchTalentPage(1, true);
-                if (currentStaffTab === 'stats' || currentStaffTab === 'followups') fetchData(true);
+                invalidateFollowUpPages();
+                followUpRows = []; followUpLoadedKey = '';
+                if (currentStaffTab === 'followups') fetchFollowUpPage(followUpPage, true);
+                if (currentStaffTab === 'stats') fetchData(true);
             }).withFailureHandler(function(error) {
                 alert('更正失敗：' + (error && error.message ? error.message : '系統連線錯誤'));
             }).apiUpdateCandidateBranch(authToken, rowId, targetBranch);
@@ -3374,7 +3519,7 @@
         }
 
         function openModal(rowId) { 
-            var t = candidateDetailCache[rowId] || db.find(function(x) { return x.rowId === rowId; });
+            var t = candidateDetailCache[rowId] || (currentStaffTab !== 'followups' && db.find(function(x) { return x.rowId === rowId; }));
             if (!t) {
                 google.script.run.withSuccessHandler(function(res) {
                     var data;
@@ -3590,7 +3735,7 @@
                 candidate._month = String(candidate['時間戳記'] || '').substring(0, 7) || '未知';
                 db.unshift(candidate);
             }
-            renderDB();
+            if (currentStaffTab === 'database') renderDB();
 
             var today = new Date();
             var todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
@@ -3599,7 +3744,8 @@
             if (todayIndex !== -1 && !isTodayPending) todayCandidates.splice(todayIndex, 1);
             else if (todayIndex !== -1) todayCandidates[todayIndex] = candidate;
             else if (isTodayPending) todayCandidates.unshift(candidate);
-            renderToday();
+            if (currentStaffTab === 'today') renderToday();
+            updateSavedFollowUp(candidate);
         }
 
         function updateSavedJobInList(job) {
@@ -3759,14 +3905,12 @@
 
         function setFollowUpFilter(filter) {
             followUpFilter = filter;
-            renderFollowUps();
+            fetchFollowUpPage(1);
         }
 
         function renderFollowUps() {
-            var today = localTodayString();
-            var all = db.filter(function(item) { return (item._result || item['面試結果']) === '追蹤' && item._followUpDate; }).sort(function(a, b) { return String(a._followUpDate).localeCompare(String(b._followUpDate)); });
-            var counts = { overdue: 0, today: 0, future: 0 };
-            all.forEach(function(item) { counts[getFollowUpBucket(item, today)]++; });
+            var today = followUpToday || followUpTodayKey();
+            var counts = followUpCounts;
             document.getElementById('followUpOverdueCount').textContent = counts.overdue;
             document.getElementById('followUpTodayCount').textContent = counts.today;
             document.getElementById('followUpFutureCount').textContent = counts.future;
@@ -3778,7 +3922,7 @@
                 var active = button.getAttribute('data-followup-filter') === followUpFilter;
                 button.className = 'followup-filter text-[10px] font-black px-4 py-2 rounded-full ' + (active ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-500');
             });
-            var visible = all.filter(function(item) {
+            var visible = followUpRows.filter(function(item) {
                 var bucket = getFollowUpBucket(item, today);
                 if (followUpFilter === 'mine') return String(item._followUpOwner || '').toLowerCase() === String((currentUser && currentUser.email) || '').toLowerCase();
                 return followUpFilter === 'all' || bucket === followUpFilter;
@@ -3797,21 +3941,52 @@
                     return "<button type='button' onclick='openModal(" + JSON.stringify(item.rowId) + ")' class=\"w-full text-left border " + tone + " rounded-2xl p-4 hover:shadow-sm transition-shadow\"><div class=\"flex justify-between gap-3\"><div class=\"min-w-0\"><p class=\"font-black text-slate-900\">" + escapeHtml(item['姓名'] || '未填姓名') + '</p><p class="text-[10px] font-bold text-slate-400 mt-1">' + escapeHtml(item._position || item['應徵職位'] || '未填職位') + '・負責：' + escapeHtml(getFollowUpOwnerName(item._followUpOwner)) + '</p></div><span class="shrink-0 text-[10px] font-black ' + (bucket === 'overdue' ? 'text-rose-500' : bucket === 'today' ? 'text-amber-600' : 'text-indigo-500') + '">' + escapeHtml(getFollowUpDayLabel(item, today)) + '</span></div>' + (item._followUpNote ? '<p class="mt-3 text-xs text-slate-600 bg-white/70 rounded-xl p-2.5">' + escapeHtml(item._followUpNote) + '</p>' : '') + '</button>'; }).join('') + '</section>';
             }).join('');
             document.getElementById('followUpList').innerHTML = html || '<div class="py-16 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-300 text-sm font-black">目前沒有符合條件的追蹤人才</div>';
+            document.getElementById('followUpPager').classList.remove('hidden');
+            document.getElementById('followUpPageLabel').textContent = '第 ' + followUpPage + ' / ' + Math.max(1, Math.ceil(followUpTotal / 20)) + ' 頁・共 ' + followUpTotal + ' 筆';
+            document.getElementById('followUpPrev').disabled = followUpPage <= 1;
+            document.getElementById('followUpNext').disabled = followUpPage * 20 >= followUpTotal;
             scheduleLucideIcons();
         }
 
-        function loadFollowUpReminderStatus() {
+        function loadFollowUpReminderStatus(force) {
+            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            if (!force && followUpReminderValue !== null && Date.now() - followUpReminderAt < FOLLOW_UP_CACHE_MS) return;
+            if (!force && followUpReminderRequest) return;
+            if (followUpReminderRequest) clearTimeout(followUpReminderRequest.timer);
+            var revision = ++followUpReminderRevision, token = authToken;
+            var request = { timer: null };
+            followUpReminderRequest = request;
+            document.getElementById('followUpReminderStatus').textContent = '每日提醒讀取中…';
+            document.getElementById('followUpReminderRetry').classList.add('hidden');
+            function finish(message, failed) {
+                if (revision !== followUpReminderRevision || token !== authToken) return false;
+                clearTimeout(request.timer); followUpReminderRequest = null;
+                document.getElementById('followUpReminderStatus').textContent = message;
+                document.getElementById('followUpReminderRetry').classList.toggle('hidden', !failed);
+                if (failed) followUpReminderAt = 0;
+                return true;
+            }
+            request.timer = setTimeout(function() {
+                if (finish('每日提醒讀取逾時', true)) followUpReminderRevision++;
+            }, 30000);
             google.script.run.withSuccessHandler(function(res) {
-                var result = JSON.parse(res);
-                if (result.status === 'success') document.getElementById('followUpReminderStatus').textContent = result.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用';
-            }).apiGetFollowUpReminderStatus(authToken);
+                if (revision !== followUpReminderRevision || token !== authToken) return;
+                var result;
+                try {
+                    result = JSON.parse(res);
+                    if (!result || result.status !== 'success' || typeof result.enabled !== 'boolean') throw new Error('每日提醒狀態讀取失敗');
+                } catch (e) { finish('每日提醒狀態讀取失敗，請重試', true); return; }
+                if (finish(result.enabled ? '每日提醒已啟用（約上午 9:00）' : '每日提醒尚未啟用', false)) {
+                    followUpReminderAt = Date.now(); followUpReminderValue = result.enabled;
+                }
+            }).withFailureHandler(function() { finish('每日提醒連線失敗，請重試', true); }).apiGetFollowUpReminderStatus(token);
         }
 
         function configureFollowUpReminder() {
             if (!confirm('將建立或重設每日約上午 9:00 的追蹤 Email 提醒，確定要繼續嗎？')) return;
             google.script.run.withSuccessHandler(function(res) {
                 var result = JSON.parse(res);
-                if (result.status === 'success') { alert('每日追蹤提醒已啟用'); loadFollowUpReminderStatus(); }
+                if (result.status === 'success') { alert('每日追蹤提醒已啟用'); loadFollowUpReminderStatus(true); }
                 else alert('設定失敗：' + (result.message || '未知錯誤'));
             }).apiConfigureFollowUpReminder(authToken);
         }
@@ -3822,7 +3997,7 @@
             else if (currentStaffTab === 'accounts') fetchAccounts();
             else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
             else if (currentStaffTab === 'training') fetchTrainingRoster(true);
-            else if (currentStaffTab === 'followups') fetchData(true);
+            else if (currentStaffTab === 'followups') { refreshFollowUps(); loadFollowUpReminderStatus(true); }
             else if (currentStaffTab === 'database') fetchTalentPage(currentPage, true);
             else fetchTodayCandidates(true);
             if (window.__FORMOSA_GAS_HTTP_BRIDGE__) setTimeout(function() { if (manualRefreshRequestCount === 0) finishManualRefresh(); }, 0);
@@ -3886,7 +4061,6 @@
             if(tab === 'hub') { renderFeatureHub(); return; }
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
-                fetchTalentIndex();
                 fetchTalentPage(currentPage);
                 return;
             }
@@ -3894,7 +4068,7 @@
             if(tab === 'accounts') { fetchAccounts(); return; }
             if(tab === 'training') { fetchTrainingRoster(); return; }
             if(tab === 'stats') { if (currentStatTab === 'training') fetchTrainingData(); else fetchData(); return; }
-            if(tab === 'followups') { fetchData(); loadFollowUpReminderStatus(); }
+            if(tab === 'followups') { fetchFollowUpPage(followUpPage); loadFollowUpReminderStatus(); }
         }
 
         // --- 帳號權限系統 ---
