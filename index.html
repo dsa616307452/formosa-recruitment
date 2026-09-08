@@ -735,7 +735,12 @@
             </div>
         </div>
         
-        <div class="flex-1 overflow-y-auto px-6 py-8 space-y-6">
+        <div id="candidateModalStatus" hidden class="flex-1 px-6 py-8" role="status" aria-live="polite">
+            <h3 id="candidateModalName" class="text-2xl font-bold"></h3>
+            <p id="candidateModalMessage" class="mt-4 text-slate-500"></p>
+            <button id="candidateModalRetry" hidden onclick="retryCandidateDetail()" class="mt-4 border rounded-xl px-4 py-2">重試讀取履歷</button>
+        </div>
+        <div id="candidateModalBody" class="flex-1 overflow-y-auto px-6 py-8 space-y-6">
             <div>
                 <div class="flex items-start gap-4">
                     <div class="relative shrink-0">
@@ -802,7 +807,7 @@
                 </div>
                 <div id="mFollowUpContainer" class="hidden p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
                     <div class="flex items-center gap-2"><i data-lucide="calendar-clock" class="w-4 h-4 text-amber-600"></i><p class="text-[10px] font-black text-amber-700 tracking-widest">追蹤安排</p></div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><select id="mFollowUpOwner" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"></select><input id="mFollowUpDate" type="date" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><span id="candidateOwnerStatus" role="status" class="text-xs text-slate-500"></span><button id="candidateOwnerRetry" type="button" hidden onclick="retryCandidateOwners()" class="text-xs underline">重試名單</button><select id="mFollowUpOwner" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"></select><input id="mFollowUpDate" type="date" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"></div>
                     <div class="flex flex-wrap gap-1.5"><button type="button" onclick="setFollowUpDate(0)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">今天</button><button type="button" onclick="setFollowUpDate(3)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">3 天</button><button type="button" onclick="setFollowUpDate(5)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">5 天</button><button type="button" onclick="setFollowUpDate(7)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">1 週</button><button type="button" onclick="setFollowUpMonth(1)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">1 個月</button><button type="button" onclick="setFollowUpMonth(2)" class="text-[9px] font-black bg-white border border-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg">2 個月</button></div>
                     <textarea id="mFollowUpNote" rows="2" placeholder="追蹤說明，例如：兩個月後可安排西屯案場／5 天後確認到職意願" class="w-full bg-white border border-amber-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none resize-none"></textarea>
                 </div>
@@ -1329,6 +1334,10 @@
         var currentStaffTab = 'hub';
         var staffTabSwitchToken = 0;
         var candidateModalRenderToken = 0;
+        var candidateDetailRequest = null;
+        var candidateModalReady = false;
+        var candidateModalRowId = '';
+        var followUpAssigneeRequest = null;
         var lucideRenderQueued = false;
         var manualRefreshActive = false;
         var manualRefreshRequestCount = 0;
@@ -1875,6 +1884,10 @@
         var FOLLOW_UP_CACHE_MS = 45000;
 
         function resetFollowUpState() {
+            closeModal();
+            candidateDetailCache = {};
+            if (followUpAssigneeRequest) clearTimeout(followUpAssigneeRequest.timer);
+            followUpAssigneeRequest = null;
             invalidateFollowUpPages();
             followUpFilter = 'all'; followUpPage = 1; followUpRows = []; followUpTotal = 0;
             followUpCounts = { overdue: 0, today: 0, future: 0 };
@@ -1985,11 +1998,44 @@
 
         function loadFollowUpAssignees(callback) {
             if (followUpAssignees.length) { if (callback) callback(); return; }
-            google.script.run.withSuccessHandler(function(res) {
-                var result = JSON.parse(res);
-                if (result.status === 'success') followUpAssignees = result.assignees || [];
-                if (callback) callback();
-            }).apiGetFollowUpAssignees(authToken);
+            if (followUpAssigneeRequest) { if (callback) followUpAssigneeRequest.callbacks.push(callback); return; }
+            var request = { token: authToken, callbacks: callback ? [callback] : [] };
+            followUpAssigneeRequest = request;
+            function finish(res) {
+                if (followUpAssigneeRequest !== request || authToken !== request.token) return;
+                clearTimeout(request.timer); followUpAssigneeRequest = null;
+                var result;
+                try { result = JSON.parse(res); } catch (e) { result = null; }
+                var ok = !!(result && result.status === 'success' && Array.isArray(result.assignees));
+                if (ok) followUpAssignees = result.assignees;
+                request.callbacks.forEach(function(cb) { cb(ok); });
+            }
+            request.timer = setTimeout(function() { finish(null); }, 20000);
+            google.script.run.withSuccessHandler(finish).withFailureHandler(function() { finish(null); }).apiGetFollowUpAssignees(authToken);
+        }
+
+        function refreshCandidateOwners(renderToken, selected) {
+            var select = document.getElementById('mFollowUpOwner');
+            select.innerHTML = '';
+            select.add(new Option(selected || '尚未指派', selected || ''));
+            select.disabled = true;
+            document.getElementById('candidateOwnerStatus').textContent = '負責人選單讀取中…';
+            document.getElementById('candidateOwnerRetry').hidden = true;
+            loadFollowUpAssignees(function(ok) {
+                if (renderToken !== candidateModalRenderToken) return;
+                if (ok !== false) {
+                    populateFollowUpOwners(selected);
+                    // 保留既有負責人，不因名單缺項而意外清空儲存值。
+                    if (selected && select.value !== selected) { select.add(new Option(selected, selected)); select.value = selected; }
+                    select.disabled = false;
+                }
+                document.getElementById('candidateOwnerStatus').textContent = ok === false ? '負責人名單讀取失敗，已保留原設定。' : '';
+                document.getElementById('candidateOwnerRetry').hidden = ok !== false;
+            });
+        }
+
+        function retryCandidateOwners() {
+            refreshCandidateOwners(candidateModalRenderToken, document.getElementById('mFollowUpOwner').value);
         }
 
         function populateFollowUpOwners(selectedEmail) {
@@ -3367,12 +3413,14 @@
         }
 
         function loadCandidatePhoto(rowId, name) {
+            var renderToken = candidateModalRenderToken;
             setCandidatePhotoFallback(name);
             if (!rowId || !authToken) return;
             if (candidatePhotoThumbnailCache[rowId]) { showCandidatePhoto(candidatePhotoThumbnailCache[rowId]); return; }
             google.script.run.withSuccessHandler(function(response) {
-                if (String(document.getElementById('mRowId').value) !== String(rowId)) return;
-                var result = typeof response === 'string' ? JSON.parse(response) : response;
+                if (renderToken !== candidateModalRenderToken || String(document.getElementById('mRowId').value) !== String(rowId)) return;
+                var result;
+                try { result = typeof response === 'string' ? JSON.parse(response) : response; } catch (e) { return; }
                 if (!result || result.status !== 'success') return;
                 if (result.photo) candidatePhotoThumbnailCache[rowId] = result.photo;
                 showCandidatePhoto(result.photo);
@@ -3518,16 +3566,48 @@
             window.open(url, '_blank', 'noopener');
         }
 
-        function openModal(rowId) { 
+        function setCandidateModalLoading(message, retry) {
+            candidateModalReady = false;
+            document.getElementById('candidateModalBody').hidden = true;
+            document.getElementById('candidateModalStatus').hidden = false;
+            document.getElementById('candidateModalMessage').textContent = message;
+            document.getElementById('candidateModalRetry').hidden = !retry;
+            document.getElementById('saveBtn').disabled = true;
+            document.getElementById('btnDownloadResume').disabled = true;
+        }
+
+        function retryCandidateDetail() { if (candidateModalRowId) openModal(candidateModalRowId); }
+
+        function openModal(rowId) {
+            if (!authToken || !rowId) return;
+            if (candidateModalRowId === rowId && (candidateDetailRequest || candidateModalReady)) return;
+            if (candidateDetailRequest) clearTimeout(candidateDetailRequest.timer);
+            candidateDetailRequest = null;
+            candidateModalRowId = rowId;
+            var generation = ++candidateModalRenderToken;
             var t = candidateDetailCache[rowId] || (currentStaffTab !== 'followups' && db.find(function(x) { return x.rowId === rowId; }));
+            var summary = t || followUpRows.find(function(x) { return x.rowId === rowId; });
+            document.getElementById('mRowId').value = '';
+            document.getElementById('mLevelLabel').textContent = '履歷資料';
+            document.getElementById('candidateModalName').textContent = summary && summary['姓名'] || '人才資料';
+            setCandidateModalLoading('正在讀取履歷…', false);
+            document.getElementById('modal').classList.add('modal-active');
             if (!t) {
-                google.script.run.withSuccessHandler(function(res) {
+                var request = { token: authToken, generation: generation, startedAt: Date.now() };
+                candidateDetailRequest = request;
+                function finish(res, error) {
+                    if (candidateDetailRequest !== request || request.token !== authToken || generation !== candidateModalRenderToken) return;
+                    clearTimeout(request.timer); candidateDetailRequest = null;
+                    console.info('apiGetCandidateDetail elapsedMs', Date.now() - request.startedAt);
                     var data;
-                    try { data = JSON.parse(res); } catch (e) { alert('履歷資料解析失敗'); return; }
-                    if (!data || data.status !== 'success') { alert((data && data.message) || '讀取履歷失敗'); return; }
+                    try { data = JSON.parse(res); } catch (e) { error = error || '履歷資料格式錯誤'; }
+                    if (!error && (!data || data.status !== 'success' || !data.item || data.item.rowId !== rowId)) error = '讀取履歷失敗，請重試';
+                    if (error) { setCandidateModalLoading(error, true); return; }
                     candidateDetailCache[rowId] = data.item;
                     openModal(rowId);
-                }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiGetCandidateDetail(authToken, rowId);
+                }
+                request.timer = setTimeout(function() { finish(null, '讀取超過 20 秒，請重試'); }, 20000);
+                google.script.run.withSuccessHandler(function(res) { finish(res); }).withFailureHandler(function() { finish(null, '連線失敗，請重試'); }).apiGetCandidateDetail(authToken, rowId);
                 return;
             }
 
@@ -3584,7 +3664,7 @@
             document.getElementById('mLevel').value = permittedLevels.indexOf(savedLevel) !== -1 ? savedLevel : '';
             document.getElementById('mFollowUpDate').value = String(t._followUpDate || '').substring(0, 10);
             document.getElementById('mFollowUpNote').value = t._followUpNote || '';
-            loadFollowUpAssignees(function() { populateFollowUpOwners(t._followUpOwner || (currentUser && currentUser.email)); });
+            refreshCandidateOwners(renderToken, t._followUpOwner || (currentUser && currentUser.email) || '');
             
             toggleJobSelect();
 
@@ -3666,11 +3746,16 @@
             btn.onclick = downloadResume; 
             btn.disabled = false;
 
+            candidateModalReady = true;
+            document.getElementById('candidateModalBody').hidden = false;
+            document.getElementById('candidateModalStatus').hidden = true;
+            document.getElementById('saveBtn').disabled = false;
             scheduleLucideIcons();
             }); });
         }
 
         function downloadResume() {
+            if (!candidateModalReady) return;
             var rowId = document.getElementById('mRowId').value;
             if (!rowId) return;
 
@@ -3757,6 +3842,7 @@
         }
 
         function saveData() { 
+            if (!candidateModalReady || document.getElementById('saveBtn').disabled) return;
             var selectedResult = document.getElementById('mResult').value;
             var selectedLevel = document.getElementById('mLevel').value;
             if (['A尚可', 'B沒人再用', 'HI'].indexOf(selectedLevel) === -1) { alert('請選擇潛力等級'); return; }
@@ -3875,6 +3961,10 @@
 
         function closeModal() {
             candidateModalRenderToken++;
+            candidateModalReady = false; candidateModalRowId = '';
+            if (candidateDetailRequest) clearTimeout(candidateDetailRequest.timer);
+            candidateDetailRequest = null;
+            document.getElementById('mRowId').value = '';
             closeCandidatePhotoViewer();
             document.getElementById('modal').classList.remove('modal-active');
             document.getElementById('mPhotoInput').value = '';
