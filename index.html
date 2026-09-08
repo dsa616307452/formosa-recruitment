@@ -1305,6 +1305,8 @@
         var talentIndexLoaded = false;
         var talentIndexLoading = false;
         var talentPageLoading = false;
+        var talentPageRequest = null;
+        var talentSearchError = false;
         var talentPageQueuedPage = null;
         var talentPageFilterRevision = 0;
         var talentSearchTimer = null;
@@ -1884,6 +1886,7 @@
         var FOLLOW_UP_CACHE_MS = 45000;
 
         function resetFollowUpState() {
+            resetTalentSearch();
             closeModal();
             candidateDetailCache = {};
             if (followUpAssigneeRequest) clearTimeout(followUpAssigneeRequest.timer);
@@ -2858,35 +2861,50 @@
             }).withFailureHandler(function(err) { talentIndexLoading = false; console.error('人才庫索引載入失敗', err); }).apiGetTalentIndex(authToken);
         }
 
+        function resetTalentSearch() {
+            talentPageFilterRevision++;
+            if (talentSearchTimer) clearTimeout(talentSearchTimer);
+            talentSearchTimer = null;
+            if (talentPageRequest) clearTimeout(talentPageRequest.timer);
+            talentPageRequest = null; talentPageLoading = false; talentPageQueuedPage = null;
+            talentSearchError = false;
+            talentPageRows = []; talentPageTotal = 0;
+        }
+
+        function showTalentSearchStatus(message, retry) {
+            talentSearchError = !!retry;
+            document.getElementById('dbResultCount').textContent = message;
+            document.getElementById('pageInfo').textContent = '—';
+            document.getElementById('prevBtn').disabled = true;
+            document.getElementById('nextBtn').disabled = true;
+            document.getElementById('dbList').innerHTML = '<div role="status" aria-live="polite" class="py-16 text-center text-slate-500 text-sm">' + escapeHtml(message) +
+                (retry ? '<br><button type="button" onclick="fetchTalentPage(currentPage, true)" class="mt-4 border rounded-xl px-4 py-2">重新搜尋</button>' : '') + '</div>';
+        }
+
         function fetchTalentPage(page, force) {
             if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
             var requestedPage = Math.max(Number(page) || 1, 1);
-            if (talentPageLoading) { talentPageQueuedPage = requestedPage; return; }
-            talentPageLoading = true;
-            var requestRevision = talentPageFilterRevision;
-            document.getElementById('dbList').innerHTML = '<div class="py-16 text-center text-slate-300 italic font-black text-xs">載入人才資料中...</div>';
             var filters = getTalentFilters(requestedPage);
-            function finishTalentPageLoad() {
-                talentPageLoading = false;
-                if (talentPageQueuedPage !== null) {
-                    var queuedPage = talentPageQueuedPage;
-                    talentPageQueuedPage = null;
-                    fetchTalentPage(queuedPage, true);
-                }
-            }
-            google.script.run.withSuccessHandler(function(res) {
+            var key = JSON.stringify(filters);
+            if (talentPageRequest && talentPageRequest.key === key && talentPageRequest.token === authToken) return;
+            if (talentPageRequest) clearTimeout(talentPageRequest.timer);
+            var request = { key: key, token: authToken, revision: ++talentPageFilterRevision };
+            talentPageRequest = request; talentPageLoading = true;
+            currentPage = requestedPage; talentPageRows = []; talentPageTotal = 0;
+            showTalentSearchStatus('搜尋中…', false);
+            function finish(res, error) {
+                if (talentPageRequest !== request || authToken !== request.token || request.revision !== talentPageFilterRevision || JSON.stringify(getTalentFilters(requestedPage)) !== key) return;
+                clearTimeout(request.timer); talentPageRequest = null; talentPageLoading = false;
                 var data;
-                try { data = JSON.parse(res); } catch (e) { finishTalentPageLoad(); console.error('人才分頁資料解析失敗', e); return; }
-                if (!data || data.status !== 'success') { finishTalentPageLoad(); if (data && data.message) alert(data.message); return; }
-                if (requestRevision === talentPageFilterRevision) {
-                    talentPageRows = data.rows || [];
-                    talentPageTotal = Number(data.total) || 0;
-                    currentPage = Number(data.page) || requestedPage;
-                    applyTalentPageJobs(data.jobs || []);
-                    renderDB();
-                }
-                finishTalentPageLoad();
-            }).withFailureHandler(function(err) { finishTalentPageLoad(); console.error('人才分頁資料載入失敗', err); }).apiGetTalentPage(authToken, filters);
+                try { data = JSON.parse(res); } catch (e) { error = error || '搜尋結果格式錯誤，請重試'; }
+                if (!error && (!data || data.status !== 'success' || !Array.isArray(data.rows) || !Number.isFinite(data.total) || data.total < 0 || !Number.isInteger(data.page) || data.page < 1)) error = '搜尋失敗，請重試';
+                if (error) { showTalentSearchStatus(error, true); return; }
+                talentPageRows = data.rows; talentPageTotal = data.total; currentPage = data.page;
+                applyTalentPageJobs(data.jobs || []);
+                if (currentStaffTab === 'database') renderDB();
+            }
+            request.timer = setTimeout(function() { finish(null, '搜尋超過 20 秒，請重試'); }, 20000);
+            google.script.run.withSuccessHandler(function(res) { finish(res); }).withFailureHandler(function() { finish(null, '搜尋連線失敗，請重試'); }).apiGetTalentPage(authToken, filters);
         }
 
         function fetchTodayCandidates(force) {
@@ -3182,11 +3200,11 @@
         }
         
         function debounceTalentSearch() {
-            talentPageFilterRevision++;
-            if (talentSearchTimer) clearTimeout(talentSearchTimer);
-            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; resetAndRenderDB(); }, 350);
+            resetTalentSearch(); currentPage = 1;
+            showTalentSearchStatus('搜尋中…', false);
+            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; fetchTalentPage(1, true); }, 350);
         }
-        function resetAndRenderDB() { if (talentSearchTimer) { clearTimeout(talentSearchTimer); talentSearchTimer = null; } talentPageFilterRevision++; currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
+        function resetAndRenderDB() { resetTalentSearch(); currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
         function changePage(delta) { fetchTalentPage(currentPage + delta, true); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
         
         function clearAllFilters() {
@@ -3245,6 +3263,7 @@
         }
 
         function renderDB() { 
+            if (talentPageRequest || talentSearchTimer || talentSearchError) return;
             document.getElementById('dbResultCount').innerText = '共 ' + talentPageTotal + ' 位符合條件';
             var totalPages = Math.ceil(talentPageTotal / pageSize) || 1; 
             if(currentPage > totalPages) currentPage = totalPages; 
@@ -4118,6 +4137,8 @@
 
         function switchTab(tab, options) { 
             options = options || {};
+            if (!currentUser) return;
+            if (tab !== 'hub' && !canUseStaffTab(tab)) { tab = 'hub'; setFeatureHubRoute(true); }
             if (tab === 'hub') { if (!options.fromRoute) setFeatureHubRoute(false); }
             else if (!options.fromRoute) setStaffRoute(tab, false);
             currentStaffTab = tab;
@@ -4247,7 +4268,7 @@
         // --- 新增／編輯帳號 Modal ---
         function renderPermissionCheckboxes(selectedKeys) {
             var box = document.getElementById('amPermissionList');
-            box.innerHTML = permissionDefs.map(function(p) {
+            box.innerHTML = '<p class="text-xs text-slate-500 col-span-full">基本功能：今日、職缺、人才庫、追蹤，自動開放。以下功能需另外授權。</p>' + permissionDefs.filter(function(p) { return ['today', 'jobs', 'talent'].indexOf(p.key) === -1; }).map(function(p) {
                 var checked = selectedKeys.indexOf(p.key) > -1 ? 'checked' : '';
                 return '<label class="flex items-center gap-2.5 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 cursor-pointer"><input type="checkbox" value="' + p.key + '" ' + checked + ' class="am-perm-checkbox w-4 h-4"><span class="text-xs font-bold text-slate-700">' + escapeHtml(p.label) + '</span></label>';
             }).join('');
