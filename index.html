@@ -1030,6 +1030,16 @@
         </div>
     </div>
 
+
+    <div id="staffPreloadOverlay" hidden style="position:fixed;inset:0;z-index:10000;background:#f8fafc;padding:10vh 24px;overflow:auto" role="status" aria-live="polite">
+      <div style="max-width:520px;margin:auto;background:white;border-radius:24px;padding:32px">
+        <h2 style="font-size:24px;font-weight:900">正在準備系統資料</h2>
+        <p style="margin:12px 0;color:#64748b">準備完成後，搜尋、翻頁與履歷即可直接開啟。</p>
+        <div id="staffPreloadStatus"></div>
+        <button id="staffPreloadRetry" hidden onclick="retryStaffPreload()" style="margin-top:20px;padding:12px;border:1px solid #cbd5e1;border-radius:12px">重試未完成的資料</button>
+        <button onclick="backToHome()" style="margin:20px 0 0 12px;padding:12px">返回首頁</button>
+      </div>
+    </div>
     <!-- Apps Script 圖示片段：在 Apps Script 專案中建立 HTML 檔，名稱為 Icons。 -->
 <script>
 (function () {
@@ -1299,6 +1309,220 @@
 
         var authToken = '';
         var currentUser = null;
+        // 常用資料僅保留於本頁記憶體；每次登入重新驗證、準備。
+        var staffPreloadReady = false, staffPreloadSections = {}, staffPreloadEpoch = 0;
+        var staffPreloadTimer = null, staffPreloadInterval = 180000;
+        var staffPreloadLabels = { talent: '人才、履歷與追蹤', jobs: '職缺', training: '訓練資料', assignees: '追蹤負責人' };
+
+        function requiredStaffSections() {
+            var result = [];
+            if (canUseStaffTab('today') || canUseStaffTab('database') || canUseStaffTab('stats')) result.push('talent');
+            if (canUseStaffTab('jobs')) result.push('jobs');
+            if (canUseStaffTab('training') || canUseStaffTab('stats')) result.push('training');
+            if (canUseStaffTab('today') || canUseStaffTab('database')) result.push('assignees');
+            return result;
+        }
+
+        function resetStaffPreload() {
+            staffPreloadEpoch++;
+            clearTimeout(staffPreloadTimer); staffPreloadTimer = null;
+            Object.keys(staffPreloadSections).forEach(function(k) { var r = staffPreloadSections[k].request; if (r) { clearTimeout(r.slow); clearTimeout(r.timeout); } });
+            staffPreloadSections = {}; staffPreloadReady = false;
+            db = []; candidateDetailCache = {}; todayCandidates = []; talentPageRows = [];
+            candidatePhotoThumbnailCache = {}; candidatePhotoFullCache = {};
+            ['dbList', 'todayGrid', 'followUpList', 'jobsList', 'accountsList', 'trainingRoster', 'trainingEditorFields'].forEach(function(id) { var el = document.getElementById(id); if (el) el.innerHTML = ''; });
+            editingTrainingRow = null; openJobMapSites = [];
+            var editor = document.getElementById('training-editor'); if (editor) editor.classList.add('hidden');
+            var accountModal = document.getElementById('account-modal'); if (accountModal) accountModal.classList.add('hidden');
+            allJobs = []; trainingDB = []; trainingRoster = []; trainingMeta = null; followUpAssignees = [];
+            fullDataLoaded = false; jobsLoaded = false; trainingRosterLoaded = false; trainingStatsLoaded = false;
+            document.getElementById('staffPreloadOverlay').hidden = true;
+            document.getElementById('app-staff').inert = false;
+        }
+
+        function startStaffPreload() {
+            requiredStaffSections().forEach(function(k) { staffPreloadSections[k] = { ready: false, pending: true, at: 0 }; });
+            document.getElementById('staffPreloadOverlay').hidden = false;
+            document.getElementById('app-staff').inert = true;
+            pumpStaffPreload();
+        }
+
+        function showStaffPreload() {
+            var keys = requiredStaffSections();
+            var retry = keys.some(function(k) { return staffPreloadSections[k] && staffPreloadSections[k].error; });
+            document.getElementById('staffPreloadStatus').textContent = keys.map(function(k) {
+                var s = staffPreloadSections[k];
+                return staffPreloadLabels[k] + '：' + (s.error || (s.request ? (s.slow ? '仍在準備…' : '準備中…') : s.ready ? '已完成' : '等待準備'));
+            }).join('\n');
+            document.getElementById('staffPreloadStatus').style.whiteSpace = 'pre-line';
+            document.getElementById('staffPreloadRetry').hidden = !retry;
+            var busy = keys.some(function(k) { return staffPreloadSections[k].request || staffPreloadSections[k].pending; });
+            if (staffPreloadReady) {
+                var oldest = keys.length ? Math.min.apply(null, keys.map(function(k) { return staffPreloadSections[k].at; })) : Date.now();
+                document.getElementById('syncStatus').textContent = (retry ? '更新失敗，保留資料；' : busy ? '背景更新中；' : '') + '最後同步 ' + new Date(oldest).toLocaleTimeString();
+            }
+            if (!staffPreloadReady && keys.every(function(k) { return staffPreloadSections[k].ready && !staffPreloadSections[k].pending; })) {
+                staffPreloadReady = true;
+                document.getElementById('staffPreloadOverlay').hidden = true;
+                document.getElementById('app-staff').inert = false;
+                loadStaffTabData(currentStaffTab || 'hub');
+                showStaffPreload();
+            }
+            clearTimeout(staffPreloadTimer);
+            if (staffPreloadReady && !busy) staffPreloadTimer = setTimeout(backgroundStaffRefresh, staffPreloadInterval);
+        }
+
+        function backgroundStaffRefresh() {
+            if (!authToken || !staffPreloadReady) return;
+            if (document.hidden) return;
+            refreshStaffSections(requiredStaffSections());
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden || !authToken || !staffPreloadReady) return;
+            if (requiredStaffSections().some(function(k) { return Date.now() - staffPreloadSections[k].at >= staffPreloadInterval; })) backgroundStaffRefresh();
+        });
+
+        function refreshStaffSections(keys) {
+            if (!authToken) return;
+            var allowed = requiredStaffSections();
+            keys.forEach(function(k) {
+                if (allowed.indexOf(k) === -1) return;
+                var s = staffPreloadSections[k] || (staffPreloadSections[k] = { ready: false, at: 0 });
+                // 正在讀取時標記為舊版本，等它完成後再讀，維持最多兩個請求。
+                if (s.request && s.error) { clearTimeout(s.request.slow); clearTimeout(s.request.timeout); s.request = null; }
+                if (s.request) s.request.obsolete = true;
+                s.pending = true; s.error = '';
+            });
+            pumpStaffPreload();
+        }
+
+        function retryStaffPreload() {
+            Object.keys(staffPreloadSections).forEach(function(k) {
+                var s = staffPreloadSections[k];
+                if (!s.error) return;
+                if (s.request) { clearTimeout(s.request.slow); clearTimeout(s.request.timeout); s.request = null; }
+                s.pending = true; s.error = '';
+            });
+            pumpStaffPreload();
+        }
+
+        function pumpStaffPreload() {
+            if (!authToken) return;
+            var keys = requiredStaffSections();
+            var running = keys.filter(function(k) { return staffPreloadSections[k].request; }).length;
+            keys.forEach(function(k) {
+                var s = staffPreloadSections[k];
+                if (running >= 2 || !s.pending || s.request) return;
+                running++; s.pending = false; s.slow = false; s.error = '';
+                var r = { token: authToken, epoch: staffPreloadEpoch, at: Date.now() }; s.request = r;
+                function active() { return r.token === authToken && r.epoch === staffPreloadEpoch && s.request === r; }
+                r.slow = setTimeout(function() { if (active()) { s.slow = true; showStaffPreload(); } }, 20000);
+                r.timeout = setTimeout(function() { if (active()) { s.error = '超過 60 秒，可重試'; showStaffPreload(); if (staffPreloadReady) staffPreloadTimer = setTimeout(backgroundStaffRefresh, staffPreloadInterval); } }, 60000);
+                function finish(response, failed) {
+                    if (!active()) return;
+                    clearTimeout(r.slow); clearTimeout(r.timeout); s.request = null;
+                    if (r.obsolete) { pumpStaffPreload(); return; }
+                    var data;
+                    try {
+                        data = typeof response === 'string' ? JSON.parse(response) : response;
+                        if (data && data.code === 'AUTH_REQUIRED') { handleSessionExpired(data.message); return; }
+                        if (!failed && data && data.user && staffAccessKey(data.user) !== staffAccessKey(currentUser)) {
+                            var nextUser = data.user, token = authToken;
+                            closeModal(); closeJobDetailModal();
+                            document.querySelectorAll('.modal-active').forEach(function(el) { el.classList.remove('modal-active'); });
+                            resetStaffPreload();
+                            document.getElementById('app-staff').querySelectorAll('input, textarea, select').forEach(function(el) { el.value = ''; });
+                            activateStaffSession(token, nextUser); return;
+                        }
+                        if (failed || !data || data.status !== 'success' || data.section !== k) throw Error('讀取失敗，請重試');
+                        applyStaffSection(k, data.data);
+                        s.ready = true; s.at = Date.now(); s.error = '';
+                        console.info('staffPreload', k, { elapsedMs: Date.now() - r.at, serverMs: data.elapsedMs });
+                    } catch (e) { s.error = '讀取失敗，請重試'; }
+                    pumpStaffPreload();
+                }
+                google.script.run.withSuccessHandler(function(res) { finish(res, false); }).withFailureHandler(function() { finish(null, true); }).apiGetStaffPreload(authToken, k);
+            });
+            showStaffPreload();
+        }
+
+        function staffAccessKey(user) {
+            return JSON.stringify([user && user.email, !!(user && user.isAdmin), ((user && user.branches) || []).slice().sort(), ((user && user.permissions) || []).slice().sort()]);
+        }
+
+        function applyStaffSection(section, data) {
+            if (section === 'talent') {
+                if (!Array.isArray(data)) throw Error('人才資料格式錯誤');
+                var next = data.map(function(item) {
+                    if (!item || !item.rowId) throw Error('人才識別碼缺漏');
+                    var address = parseAddress(item['通訊地址'] || '');
+                    item._city = address.city || '未註明'; item._district = address.district || '未註明';
+                    item._timestamp = String(item['時間戳記'] || ''); item._month = item._timestamp.substring(0, 7) || '未知';
+                    return item;
+                });
+                next.sort(function(a, b) { return b._timestamp.localeCompare(a._timestamp); });
+                db = next; candidateDetailCache = {}; fullDataLoaded = true;
+                deriveStaffTalent(); updateUI();
+                if (currentStaffTab === 'followups') renderFollowUps();
+            } else if (section === 'jobs') {
+                if (!Array.isArray(data)) throw Error('職缺資料格式錯誤');
+                allJobs = data; jobsLoaded = true;
+                if (staffPreloadReady && currentStaffTab === 'jobs') renderJobs();
+            } else if (section === 'assignees') {
+                if (!Array.isArray(data)) throw Error('負責人資料格式錯誤');
+                followUpAssignees = data;
+            } else if (section === 'training') {
+                if (!data || !Array.isArray(data.stats) || !data.roster || !Array.isArray(data.roster.rows)) throw Error('訓練資料格式錯誤');
+                trainingDB = data.stats; trainingStatsLoaded = true;
+                trainingMeta = data.roster; trainingRoster = data.roster.rows; trainingRosterLoaded = true;
+                var sel = document.getElementById('trainingBranchFilter'), previous = sel.value;
+                var branches = currentUser.isAdmin ? ['全部', '台中總部', '台中海線港區分部', '新北分部'] : (currentUser.branches || []);
+                sel.innerHTML = branches.map(function(b) { return '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>'; }).join('');
+                if (branches.indexOf(previous) >= 0) sel.value = previous;
+                if (staffPreloadReady && currentStaffTab === 'training') renderTrainingRoster();
+                if (staffPreloadReady && currentStaffTab === 'stats' && currentStatTab === 'training') { renderTrainingMonthOptions(); renderTrainingStats(); }
+            }
+        }
+
+        function deriveStaffTalent() {
+            var today = followUpTodayKey();
+            todayCandidates = db.filter(function(t) { return String(t._timestamp || t['時間戳記'] || '').indexOf(today) === 0 && (!t._result || t._result === '尚未面試'); });
+            todayLoaded = true;
+            deriveStaffFollowUps();
+        }
+
+        function deriveStaffFollowUps() {
+            followUpToday = followUpTodayKey();
+            var counts = { all: 0, mine: 0, overdue: 0, today: 0, future: 0 };
+            var rows = db.filter(function(t) { return t._result === '追蹤' && t._followUpDate; }).filter(function(t) {
+                var date = String(t._followUpDate).substring(0, 10);
+                var bucket = date < followUpToday ? 'overdue' : date === followUpToday ? 'today' : 'future';
+                var mine = String(t._followUpOwner || '').toLowerCase() === String(currentUser.email || '').toLowerCase();
+                counts.all++; counts[bucket]++; if (mine) counts.mine++;
+                return followUpFilter === 'all' || (followUpFilter === 'mine' ? mine : bucket === followUpFilter);
+            });
+            rows.sort(function(a, b) { return String(a._followUpDate).localeCompare(String(b._followUpDate)) || String(a.rowId).localeCompare(String(b.rowId)); });
+            followUpTotal = rows.length; followUpCounts = counts;
+            followUpPage = Math.max(1, Math.min(followUpPage, Math.ceil(rows.length / 20) || 1));
+            followUpRows = rows.slice((followUpPage - 1) * 20, followUpPage * 20);
+            followUpLoadedKey = followUpFilter + ':' + followUpPage;
+            document.getElementById('followUpLoadStatus').textContent = '';
+            document.getElementById('followUpRetry').classList.add('hidden');
+        }
+
+        function matchesLocalTalent(item, filters) {
+            var search = String(filters.search || '').trim().toLowerCase();
+            var address = String(item['通訊地址'] || '');
+            if (search && [item['姓名'], item['電話'], address].join(' ').toLowerCase().indexOf(search) < 0) return false;
+            if (filters.job !== '全部' && item._position !== filters.job) return false;
+            if (filters.city !== '全部' && address.indexOf(filters.city) < 0) return false;
+            if (filters.district !== '全部' && address.indexOf(filters.district) < 0) return false;
+            if (filters.result !== '全部' && item._result !== filters.result) return false;
+            if (filters.level !== '全部' && String(item['潛力等級'] || '').indexOf(filters.level.substring(0, 1)) !== 0) return false;
+            return true;
+        }
+
         var db = []; 
         var fullDataLoaded = false;
         var fullDataLoading = false;
@@ -1561,6 +1785,7 @@
         function activateStaffSession(token, user) {
             if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
             persistentSessionRestoreAttempts = 0;
+            resetStaffPreload();
             authToken = token;
             currentUser = user || null;
             if (talentSearchTimer) clearTimeout(talentSearchTimer);
@@ -1575,6 +1800,7 @@
             applyPermissionsToNav(currentUser);
             addCurrentUserToComboOptions();
             initFilterCitySelector();
+            startStaffPreload();
         }
 
         function restorePersistentStaffSession() {
@@ -1919,66 +2145,11 @@
         }
 
         function fetchFollowUpPage(page, force) {
-            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
+            if (force) { refreshStaffSections(['talent']); return; }
+            if (!fullDataLoaded || !canUseStaffTab('followups')) return;
             followUpPage = Math.max(1, Number(page) || 1);
-            var today = followUpTodayKey();
-            if (followUpToday && followUpToday !== today) invalidateFollowUpPages();
-            followUpToday = today;
-            var key = followUpFilter + ':' + followUpPage;
-            var cached = followUpCache[key];
-            function applyPage(data) {
-                followUpRows = data.rows; followUpTotal = data.total; followUpCounts = data.counts;
-                followUpPage = data.page; followUpToday = data.today;
-                followUpLoadedKey = followUpFilter + ':' + data.page;
-                if (currentStaffTab === 'followups') renderFollowUps();
-                else followUpLoadedKey = '';
-            }
-            if (!force && cached && Date.now() - cached.at < FOLLOW_UP_CACHE_MS && cached.data.today === today) {
-                // 即使命中快取，也要使上一個分類的回應失效。
-                followUpRevision++;
-                if (followUpRequest) clearTimeout(followUpRequest.timer);
-                followUpRequest = null;
-                applyPage(cached.data);
-                document.getElementById('followUpLoadStatus').textContent = '';
-                document.getElementById('followUpRetry').classList.add('hidden');
-                return;
-            }
-            if (!force && followUpRequest && followUpRequest.key === key) return;
-            if (followUpRequest) clearTimeout(followUpRequest.timer);
-            var revision = ++followUpRevision, token = authToken;
-            var request = { key: key, timer: null };
-            followUpRequest = request;
-            var keepRows = followUpLoadedKey === key;
-            if (!keepRows) {
-                document.getElementById('followUpList').innerHTML = '<div class="py-16 text-center text-slate-400">載入追蹤人才中...</div>';
-                document.getElementById('followUpPager').classList.add('hidden');
-            }
-            document.getElementById('followUpLoadStatus').textContent = keepRows ? '正在更新追蹤資料…' : '正在讀取追蹤資料…';
-            document.getElementById('followUpRetry').classList.add('hidden');
-            function finish(error) {
-                if (revision !== followUpRevision || token !== authToken) return false;
-                clearTimeout(request.timer); followUpRequest = null;
-                document.getElementById('followUpLoadStatus').textContent = error || '';
-                document.getElementById('followUpRetry').classList.toggle('hidden', !error);
-                if (error && !keepRows) document.getElementById('followUpList').innerHTML = '';
-                return true;
-            }
-            request.timer = setTimeout(function() {
-                if (finish('追蹤資料讀取逾時，請重試。')) followUpRevision++;
-            }, 30000);
-            google.script.run.withSuccessHandler(function(res) {
-                if (revision !== followUpRevision || token !== authToken) return;
-                var data;
-                try {
-                    data = JSON.parse(res);
-                    if (!data || data.status !== 'success') throw new Error((data && data.message) || '追蹤資料讀取失敗');
-                    if (!Array.isArray(data.rows) || data.rows.length > 20 || !data.counts || !Number.isInteger(data.total) || data.total < 0 || !Number.isInteger(data.page) || data.page < 1 || !/^\d{4}-\d{2}-\d{2}$/.test(data.today)) throw new Error('追蹤資料格式錯誤');
-                } catch (e) { finish(e.message); return; }
-                if (!finish()) return;
-                // 新回應可能因最後一頁被移除而回到前一頁。
-                followUpCache[followUpFilter + ':' + data.page] = { at: Date.now(), data: data };
-                applyPage(data);
-            }).withFailureHandler(function() { finish('追蹤資料讀取失敗，請重試。'); }).apiGetFollowUpPage(token, { filter: followUpFilter, page: followUpPage, refresh: !!force });
+            deriveStaffFollowUps();
+            if (currentStaffTab === 'followups') renderFollowUps();
         }
 
         function refreshFollowUps() {
@@ -1995,12 +2166,12 @@
             }
             if (currentStaffTab === 'followups') {
                 renderFollowUps();
-                fetchFollowUpPage(followUpPage, true);
+                fetchFollowUpPage(followUpPage);
             }
         }
 
         function loadFollowUpAssignees(callback) {
-            if (followUpAssignees.length) { if (callback) callback(); return; }
+            if (staffPreloadSections.assignees && staffPreloadSections.assignees.ready) { if (callback) callback(); return; }
             if (followUpAssigneeRequest) { if (callback) followUpAssigneeRequest.callbacks.push(callback); return; }
             var request = { token: authToken, callbacks: callback ? [callback] : [] };
             followUpAssigneeRequest = request;
@@ -2156,6 +2327,7 @@
         }
         
         function backToHome() {
+            resetStaffPreload();
             var tokenToInvalidate = authToken;
             document.getElementById('app-candidate').classList.add('hidden');
             document.getElementById('app-staff').classList.add('hidden');
@@ -2429,23 +2601,8 @@
         }
 
         function fetchJobs(force) {
-            if (jobsLoaded && !force) { renderJobs(); return; }
-            if (jobsLoading) return;
-            jobsLoading = true;
-            var list = document.getElementById('jobsList');
-            list.innerHTML = '<p class="text-center text-slate-300 italic font-black text-sm py-10">更新資料中...</p>';
-            google.script.run.withSuccessHandler(function(res) {
-                var jobs = [];
-                try { jobs = JSON.parse(res); } catch(e) { console.error("JSON Parse error", e); }
-                if (!Array.isArray(jobs)) {
-                    if (jobs && String(jobs.message || '').indexOf('登入') > -1) { handleSessionExpired(jobs.message); return; }
-                    jobs = [];
-                }
-                allJobs = jobs; 
-                jobsLoaded = true;
-                jobsLoading = false;
-                renderJobs();
-            }).withFailureHandler(function(err) { jobsLoading = false; console.error('職缺載入失敗', err); }).apiGetJobs(authToken);
+            if (force || !jobsLoaded) { refreshStaffSections(['jobs']); return; }
+            renderJobs();
         }
 
         var selectedJobManager = '全部'; // '全部' 或某個主管姓名
@@ -2584,7 +2741,7 @@
         }
 
         function toggleShowClosed() { showClosedJobs = document.getElementById('toggleClosedJobs').checked; renderJobs(); }
-        function updateJobStatus(rowId) { if (!confirm("確定要將此職缺標記為「已結案」嗎？\n這將會把它從目前列表中隱藏。")) return; google.script.run.withSuccessHandler(function(res) { var result = typeof res === 'string' ? JSON.parse(res) : res; if (result && result.status === 'success') { allJobs.forEach(function(job) { if (String(job.rowId) === String(rowId)) job.systemClosed = '結案'; }); renderJobs(); } else if (String((result && result.message) || '').indexOf('登入') > -1) { handleSessionExpired(result.message); } else { alert('結案失敗：' + ((result && result.message) || '未知錯誤')); } }).withFailureHandler(function(err) { alert('系統連線錯誤：' + (err && err.message ? err.message : err)); }).apiCloseJob(authToken, String(rowId)); }
+        function updateJobStatus(rowId) { if (!confirm("確定要將此職缺標記為「已結案」嗎？\n這將會把它從目前列表中隱藏。")) return; google.script.run.withSuccessHandler(function(res) { var result = typeof res === 'string' ? JSON.parse(res) : res; if (result && result.status === 'success') { allJobs.forEach(function(job) { if (String(job.rowId) === String(rowId)) job.systemClosed = '結案'; }); renderJobs(); refreshStaffSections(['jobs']); } else if (String((result && result.message) || '').indexOf('登入') > -1) { handleSessionExpired(result.message); } else { alert('結案失敗：' + ((result && result.message) || '未知錯誤')); } }).withFailureHandler(function(err) { alert('系統連線錯誤：' + (err && err.message ? err.message : err)); }).apiCloseJob(authToken, String(rowId)); }
         
         function submitCandidate(e) { 
             if (e) e.preventDefault(); 
@@ -2752,6 +2909,7 @@
         }
 
         function handleSessionExpired(message) {
+            resetStaffPreload();
             alert(message || "登入已過期，請重新登入");
             clearSavedStaffLogin(false);
             authToken = '';
@@ -2763,66 +2921,9 @@
             document.getElementById('login-modal').classList.remove('hidden');
         }
         
-        function fetchData(force) { 
-            if (fullDataLoaded && !force) { updateUI(); return; }
-            if (fullDataLoading) return;
-            fullDataLoading = true;
-            var icon = document.getElementById('syncIcon'); 
-            var status = document.getElementById('syncStatus'); 
-            var errorBox = document.getElementById('errorBox'); 
-            status.innerText = "PRO 同步中..."; 
-            icon.classList.add('animate-spin'); 
-            errorBox.classList.add('hidden'); 
-            
-            google.script.run.withSuccessHandler(function(response) { 
-                try { 
-                    var rawData = JSON.parse(response); 
-                    if (rawData && !Array.isArray(rawData) && String(rawData.message || '').indexOf('登入') > -1) {
-                        icon.classList.remove('animate-spin');
-                        fullDataLoading = false;
-                        handleSessionExpired(rawData.message);
-                        return;
-                    }
-                    if (!rawData || rawData.length === 0) { 
-                        status.innerText = "目前無資料"; 
-                        db = []; 
-                        fullDataLoaded = true;
-                        fullDataLoading = false;
-                        updateUI(); 
-                        icon.classList.remove('animate-spin'); 
-                        return; 
-                    } 
-                    db = rawData.map(function(item) { 
-                        var addr = item["通訊地址"] || ""; 
-                        var parsed = parseAddress(addr);
-                        var district = parsed.district || "未註明";
-                        var month = "未知"; 
-                        if (item["時間戳記"]) { 
-                            var dStr = item["時間戳記"].toString(); 
-                            if(dStr.indexOf('-') > -1) month = dStr.substring(0, 7); 
-                        } 
-                        item._city = parsed.city || "未註明";
-                        item._district = district; 
-                        item._month = month; 
-                        return item; 
-                    }); 
-                    db.sort(function(a, b) { var tA = a["時間戳記"] || ""; var tB = b["時間戳記"] || ""; return tB.localeCompare(tA); }); 
-                    fullDataLoaded = true;
-                    fullDataLoading = false;
-                    status.innerText = "最後同步: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); 
-                    updateUI(); 
-                } catch(e) { 
-                    console.error(e); 
-                    status.innerText = "資料解析失敗"; 
-                    fullDataLoading = false;
-                } 
-                icon.classList.remove('animate-spin'); 
-            }).withFailureHandler(function(err) {
-                fullDataLoading = false;
-                icon.classList.remove('animate-spin');
-                status.innerText = '同步失敗，請稍後重試';
-                console.error('人才資料同步失敗', err);
-            }).apiGetData(authToken); 
+        function fetchData(force) {
+            if (force) { refreshStaffSections(['talent']); return; }
+            if (fullDataLoaded) updateUI();
         }
 
         function getTalentFilters(page) {
@@ -2847,18 +2948,8 @@
             jobSelect.value = talentPageJobs.indexOf(previousJob) > -1 ? previousJob : '全部';
         }
 
-        function fetchTalentIndex(force) {
-            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
-            if (talentIndexLoaded && !force) return;
-            if (talentIndexLoading) return;
-            talentIndexLoading = true;
-            google.script.run.withSuccessHandler(function(res) {
-                var data;
-                try { data = JSON.parse(res); } catch (e) { talentIndexLoading = false; console.error('人才庫索引解析失敗', e); return; }
-                if (!data || data.status !== 'success') { talentIndexLoading = false; if (data && data.message) alert(data.message); return; }
-                talentIndexLoading = false;
-                applyTalentPageJobs(data.jobs || []);
-            }).withFailureHandler(function(err) { talentIndexLoading = false; console.error('人才庫索引載入失敗', err); }).apiGetTalentIndex(authToken);
+        function fetchTalentIndex() {
+            if (fullDataLoaded) applyTalentPageJobs(db.map(function(t) { return t._position; }).filter(function(v, i, a) { return v && a.indexOf(v) === i; }).sort());
         }
 
         function resetTalentSearch() {
@@ -2881,46 +2972,16 @@
                 (retry ? '<br><button type="button" onclick="fetchTalentPage(currentPage, true)" class="mt-4 border rounded-xl px-4 py-2">重新搜尋</button>' : '') + '</div>';
         }
 
-        function fetchTalentPage(page, force) {
-            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('talent') === -1)) return;
-            var requestedPage = Math.max(Number(page) || 1, 1);
-            var filters = getTalentFilters(requestedPage);
-            var key = JSON.stringify(filters);
-            if (talentPageRequest && talentPageRequest.key === key && talentPageRequest.token === authToken) return;
-            if (talentPageRequest) clearTimeout(talentPageRequest.timer);
-            var request = { key: key, token: authToken, revision: ++talentPageFilterRevision };
-            talentPageRequest = request; talentPageLoading = true;
-            currentPage = requestedPage; talentPageRows = []; talentPageTotal = 0;
-            showTalentSearchStatus('搜尋中…', false);
-            function finish(res, error) {
-                if (talentPageRequest !== request || authToken !== request.token || request.revision !== talentPageFilterRevision || JSON.stringify(getTalentFilters(requestedPage)) !== key) return;
-                clearTimeout(request.timer); talentPageRequest = null; talentPageLoading = false;
-                var data;
-                try { data = JSON.parse(res); } catch (e) { error = error || '搜尋結果格式錯誤，請重試'; }
-                if (!error && (!data || data.status !== 'success' || !Array.isArray(data.rows) || !Number.isFinite(data.total) || data.total < 0 || !Number.isInteger(data.page) || data.page < 1)) error = '搜尋失敗，請重試';
-                if (error) { showTalentSearchStatus(error, true); return; }
-                talentPageRows = data.rows; talentPageTotal = data.total; currentPage = data.page;
-                applyTalentPageJobs(data.jobs || []);
-                if (currentStaffTab === 'database') renderDB();
-            }
-            request.timer = setTimeout(function() { finish(null, '搜尋超過 20 秒，請重試'); }, 20000);
-            google.script.run.withSuccessHandler(function(res) { finish(res); }).withFailureHandler(function() { finish(null, '搜尋連線失敗，請重試'); }).apiGetTalentPage(authToken, filters);
+        function fetchTalentPage(page) {
+            if (!fullDataLoaded || !canUseStaffTab('database')) return;
+            currentPage = Math.max(1, Number(page) || 1);
+            talentSearchError = false;
+            renderDB();
         }
 
         function fetchTodayCandidates(force) {
-            if (!currentUser || (!currentUser.isAdmin && (currentUser.permissions || []).indexOf('today') === -1 && (currentUser.permissions || []).indexOf('talent') === -1)) return;
-            if (todayLoaded && !force) { renderToday(); return; }
-            if (todayLoading) return;
-            todayLoading = true;
-            google.script.run.withSuccessHandler(function(res) {
-                var data;
-                try { data = JSON.parse(res); } catch (e) { todayLoading = false; return; }
-                if (!data || data.status !== 'success') { todayLoading = false; if (data && String(data.message || '').indexOf('登入') > -1) handleSessionExpired(data.message); return; }
-                todayCandidates = data.rows || [];
-                todayLoaded = true;
-                todayLoading = false;
-                renderToday();
-            }).withFailureHandler(function(err) { todayLoading = false; console.error('今日待辦載入失敗', err); }).apiGetTodayCandidates(authToken);
+            if (force) { refreshStaffSections(['talent']); return; }
+            if (fullDataLoaded) { deriveStaffTalent(); if (currentStaffTab === 'today') renderToday(); }
         }
         
         function updateUI() { 
@@ -2946,7 +3007,7 @@
                 }
             }
 
-            document.getElementById('fJob').innerHTML = '<option value="全部">所有職務</option>' + distinctJobs.map(function(j){ return '<option value="'+escapeHtml(j)+'">'+escapeHtml(j)+'</option>'; }).join(''); 
+            applyTalentPageJobs(distinctJobs);
             
             if (currentStaffTab === 'stats') handleStatFilterChange();
             if (currentStaffTab === 'database') renderDB(); 
@@ -3202,7 +3263,7 @@
         function debounceTalentSearch() {
             resetTalentSearch(); currentPage = 1;
             showTalentSearchStatus('搜尋中…', false);
-            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; fetchTalentPage(1, true); }, 350);
+            talentSearchTimer = setTimeout(function() { talentSearchTimer = null; fetchTalentPage(1, true); }, 100);
         }
         function resetAndRenderDB() { resetTalentSearch(); currentPage = 1; if (currentStaffTab === 'database') fetchTalentPage(1, true); }
         function changePage(delta) { fetchTalentPage(currentPage + delta, true); document.querySelector('#view-database').scrollIntoView({ behavior: 'smooth' }); }
@@ -3263,7 +3324,12 @@
         }
 
         function renderDB() { 
-            if (talentPageRequest || talentSearchTimer || talentSearchError) return;
+            if (!fullDataLoaded || talentSearchTimer) return;
+            var filters = getTalentFilters(currentPage);
+            var filtered = db.filter(function(item) { return matchesLocalTalent(item, filters); });
+            talentPageTotal = filtered.length;
+            currentPage = Math.max(1, Math.min(currentPage, Math.ceil(talentPageTotal / pageSize) || 1));
+            talentPageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
             document.getElementById('dbResultCount').innerText = '共 ' + talentPageTotal + ' 位符合條件';
             var totalPages = Math.ceil(talentPageTotal / pageSize) || 1; 
             if(currentPage > totalPages) currentPage = totalPages; 
@@ -3604,8 +3670,9 @@
             candidateDetailRequest = null;
             candidateModalRowId = rowId;
             var generation = ++candidateModalRenderToken;
-            var t = candidateDetailCache[rowId] || (currentStaffTab !== 'followups' && db.find(function(x) { return x.rowId === rowId; }));
+            var t = candidateDetailCache[rowId] || db.find(function(x) { return String(x.rowId) === String(rowId); });
             var summary = t || followUpRows.find(function(x) { return x.rowId === rowId; });
+            if (staffPreloadReady && !t) { alert('此人才已不在目前資料中，請同步後再試。'); candidateModalRowId = ''; return; }
             document.getElementById('mRowId').value = '';
             document.getElementById('mLevelLabel').textContent = '履歷資料';
             document.getElementById('candidateModalName').textContent = summary && summary['姓名'] || '人才資料';
@@ -3827,6 +3894,7 @@
         }
 
         function updateSavedCandidateInLists(candidate) {
+            refreshStaffSections(['talent']);
             if (!candidate || !candidate.rowId) return;
             delete candidateDetailCache[candidate.rowId];
             var parsedAddress = parseAddress(candidate['通訊地址'] || '');
@@ -3853,6 +3921,7 @@
         }
 
         function updateSavedJobInList(job) {
+            if (job) refreshStaffSections(['jobs']);
             if (!job || !job.rowId) return;
             var index = allJobs.findIndex(function(item) { return String(item.rowId) === String(job.rowId); });
             if (index === -1) allJobs.unshift(job);
@@ -3968,8 +4037,7 @@
                 if (result.status === 'success') {
                     document.getElementById('mBlacklistBox').classList.add('hidden');
                     candidateDetailCache = {};
-                    fullDataLoaded = false;
-                    renderDB();
+                    refreshStaffSections(['talent']);
                 } else if (String(result.message || '').indexOf('登入') > -1) {
                     handleSessionExpired(result.message);
                 } else {
@@ -4101,15 +4169,8 @@
         }
 
         function refreshCurrentView() {
-            if (!beginManualRefresh()) return;
-            if (currentStaffTab === 'jobs') fetchJobs(true);
-            else if (currentStaffTab === 'accounts') fetchAccounts();
-            else if (currentStaffTab === 'stats' && currentStatTab === 'training') fetchTrainingData(true);
-            else if (currentStaffTab === 'training') fetchTrainingRoster(true);
-            else if (currentStaffTab === 'followups') { refreshFollowUps(); loadFollowUpReminderStatus(true); }
-            else if (currentStaffTab === 'database') fetchTalentPage(currentPage, true);
-            else fetchTodayCandidates(true);
-            if (window.__FORMOSA_GAS_HTTP_BRIDGE__) setTimeout(function() { if (manualRefreshRequestCount === 0) finishManualRefresh(); }, 0);
+            if (currentStaffTab === 'accounts') { fetchAccounts(); return; }
+            refreshStaffSections(requiredStaffSections());
         }
         
         var FEATURE_HUB_ITEMS = [
@@ -4169,6 +4230,7 @@
         }
 
         function loadStaffTabData(tab) {
+            if (!staffPreloadReady) return;
             if(tab === 'hub') { renderFeatureHub(); return; }
             if(tab === 'today') { fetchTodayCandidates(); return; }
             if(tab === 'database') {
@@ -4350,22 +4412,8 @@
         }
 
         function fetchTrainingData(force) {
-            if (trainingStatsLoaded && !force) { if (currentStatTab === 'training') { renderTrainingMonthOptions(); renderTrainingStats(); } return; }
-            google.script.run.withSuccessHandler(function(res) {
-                try {
-                    var parsed = JSON.parse(res);
-                    if (!Array.isArray(parsed)) {
-                        if (parsed && String(parsed.message || '').indexOf('登入') > -1) { handleSessionExpired(parsed.message); }
-                        return;
-                    }
-                    trainingDB = parsed;
-                    trainingStatsLoaded = true;
-                    if (currentStatTab === 'training') {
-                        renderTrainingMonthOptions();
-                        renderTrainingStats();
-                    }
-                } catch(e) { console.error("Training JSON Error", e); }
-            }).apiGetTrainingData(authToken);
+            if (force || !trainingStatsLoaded) { refreshStaffSections(['training']); return; }
+            if (currentStatTab === 'training') { renderTrainingMonthOptions(); renderTrainingStats(); }
         }
 
         function switchStatSubTab(tab) {
@@ -4703,7 +4751,10 @@
         }
 
         var trainingRoster = [], trainingMeta = null, editingTrainingRow = null, trainingSaving = false, trainingRosterLoaded = false;
-        function fetchTrainingRoster(force) { if (trainingRosterLoaded && !force) { renderTrainingRoster(); return; } google.script.run.withSuccessHandler(function(res) { var data = JSON.parse(res); if (data.status !== 'success') { alert(data.message || '載入失敗'); return; } trainingMeta = data; trainingRoster = data.rows || []; trainingRosterLoaded = true; var sel = document.getElementById('trainingBranchFilter'); var branches = currentUser && currentUser.isAdmin ? ['全部'].concat(['台中總部','台中海線港區分部','新北分部']) : ((currentUser && currentUser.branches) || []); sel.innerHTML = branches.map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join(''); renderTrainingRoster(); }).apiGetTrainingRoster(authToken); }
+        function fetchTrainingRoster(force) {
+            if (force || !trainingRosterLoaded) { refreshStaffSections(['training']); return; }
+            renderTrainingRoster();
+        }
         function renderTrainingRoster() { if (!trainingMeta) return; var search = (document.getElementById('trainingSearch').value || '').toLowerCase(), branch = document.getElementById('trainingBranchFilter').value; var rows = trainingRoster.filter(function(row){ return (branch === '全部' || row.branch === branch) && ((row['員工姓名'] || '').toLowerCase().indexOf(search) > -1 || (row['案場'] || '').toLowerCase().indexOf(search) > -1); }); document.getElementById('trainingRoster').innerHTML = rows.length ? rows.map(function(row){ return "<button type='button' onclick='openTrainingEditor("+JSON.stringify(row.rowId)+")' class=\"w-full text-left bg-white border border-slate-100 rounded-2xl p-4\"><div class=\"flex justify-between\"><b>"+escapeHtml(row['員工姓名']||'未填姓名')+"</b><span class=\"text-indigo-500 text-xs font-black\">"+escapeHtml(row.branch)+"</span></div><p class=\"text-xs text-slate-400 mt-1\">"+escapeHtml(row['案場']||'未填案場')+'・'+escapeHtml(row['狀態']||'')+"</p><p class=\"text-xs font-black mt-2\">總成績："+escapeHtml(row['總成績(自動計算)']||'尚未計算')+"</p></button>"; }).join('') : '<p class="text-center text-slate-300 py-10">尚無符合資料</p>'; }
         function openTrainingEditor(rowId) { editingTrainingRow = rowId ? trainingRoster.filter(function(row){return row.rowId === rowId;})[0] : null; document.getElementById('trainingEditorTitle').textContent = editingTrainingRow ? '填寫職前訓練分數' : '新增受訓員工'; function fields(headers, readOnly) { return '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' + headers.map(function(h){ var value = editingTrainingRow ? (editingTrainingRow[h] || '') : ''; return '<label class="text-xs font-black text-slate-600">'+escapeHtml(h)+'<input data-training-header="'+escapeHtml(h)+'" value="'+escapeHtml(value)+'" '+(readOnly?'readonly':'')+' class="form-input mt-1 '+(readOnly?'bg-slate-100':'')+'"></label>'; }).join('') + '</div>'; } var numberHtml = editingTrainingRow ? '<p class="text-xs font-black text-slate-400 mb-4">編號：' + escapeHtml(editingTrainingRow['編號'] || '') + '</p>' : ''; document.getElementById('trainingEditorFields').innerHTML = numberHtml + '<section class="sm:col-span-2"><h4 class="font-black text-slate-900 mb-3">受訓基本資料</h4>' + fields(trainingMeta.basicHeaders, false) + '</section><section class="sm:col-span-2 border-t pt-5"><h4 class="font-black text-indigo-600 mb-3">訓練評分</h4>' + fields(trainingMeta.editableHeaders.filter(function(h){return h !== '評語' && h !== '備註';}), false) + '</section><section class="sm:col-span-2 border-t pt-5"><h4 class="font-black text-slate-900 mb-3">評語與備註</h4>' + fields(['評語','備註'], false) + '<div class="mt-4"><p class="text-xs font-black text-indigo-600 mb-2">受訓與獎金資料</p>' + fields(trainingMeta.detailHeaders || [], false) + '</div></section>'; document.getElementById('training-editor').classList.remove('hidden'); }
         function closeTrainingEditor(){ if (trainingSaving) return; document.getElementById('training-editor').classList.add('hidden'); }
