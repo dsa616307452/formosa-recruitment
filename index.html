@@ -473,8 +473,22 @@
             <div id="view-jobs" class="hidden space-y-6"><div class="flex justify-between items-end"><h2 class="text-3xl font-[1000] italic tracking-tight text-slate-900">職缺需求</h2><div class="flex gap-2 items-center"><label class="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" id="toggleClosedJobs" onchange="toggleShowClosed()" class="w-4 h-4 accent-slate-900 rounded"><span class="text-[10px] font-bold text-slate-400">顯示已結案</span></label><button onclick="openJobModal()" class="bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest flex items-center gap-2 active:scale-95 transition-transform shadow-lg shadow-slate-300"><i data-lucide="plus" class="w-3 h-3"></i> 新增</button></div></div>
                 <div id="jobsBranchList" class="flex flex-wrap gap-2"></div>
                 <div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                    <div id="jobsManagerList" class="flex sm:flex-col gap-2 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 sm:w-56 sm:shrink-0"><p class="text-center text-slate-300 italic font-black text-xs py-6 w-full">載入中...</p></div>
-                    <div id="jobsList" class="flex-1 space-y-4 pb-10 min-w-0"><p class="text-center text-slate-300 italic font-black text-sm py-10">載入中...</p></div>
+                    <div id="jobsManagerList" class="hidden sm:flex sm:flex-col gap-2 sm:w-56 sm:shrink-0"><p class="text-center text-slate-300 italic font-black text-xs py-6 w-full">載入中...</p></div>
+                    <div class="flex-1 min-w-0 space-y-4">
+                        <div class="rounded-2xl border border-slate-100 bg-white p-4 space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+                                <label class="sm:hidden w-full min-w-0 space-y-1"><span class="block text-xs font-bold text-slate-500">主管（目前分部職缺數）</span><select id="jobsManagerFilter" onchange="selectJobManager(this.value)" class="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"><option value="全部">全部主管</option></select></label>
+                                <label class="w-full min-w-0 sm:w-52 space-y-1"><span class="block text-xs font-bold text-slate-500">職稱</span><select id="jobsPositionFilter" onchange="selectJobPosition(this.value)" class="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"><option value="">全部職稱</option></select></label>
+                            </div>
+                            <div class="flex items-center justify-between gap-2">
+                            <p id="jobsFilterSummary" role="status" aria-live="polite" class="flex-1 text-xs leading-relaxed text-slate-500 break-words"></p>
+                                <button type="button" onclick="clearJobFilters()" class="shrink-0 rounded-xl px-3 py-3 text-xs font-bold text-indigo-600 hover:bg-indigo-50 focus:ring-2 focus:ring-indigo-500">清除篩選</button>
+                            </div>
+                            <div id="jobsStatistics" class="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="未結案職缺統計"></div>
+                            <p id="jobsStatisticsNote" class="text-xs leading-relaxed text-slate-500"></p>
+                        </div>
+                        <div id="jobsList" class="space-y-4 pb-10 min-w-0"><p class="text-center text-slate-300 italic font-black text-sm py-10">載入中...</p></div>
+                    </div>
                 </div>
             </div>
             
@@ -1334,6 +1348,9 @@
             editingTrainingRow = null; openJobMapSites = [];
             var editor = document.getElementById('training-editor'); if (editor) editor.classList.add('hidden');
             var accountModal = document.getElementById('account-modal'); if (accountModal) accountModal.classList.add('hidden');
+            selectedJobManager = '全部'; selectedJobBranch = '全部'; selectedJobPosition = '';
+            ['jobsManagerList', 'jobsFilterSummary', 'jobsStatistics', 'jobsStatisticsNote'].forEach(function(id) { var el = document.getElementById(id); if (el) el.textContent = ''; });
+            ['jobsManagerFilter', 'jobsPositionFilter'].forEach(function(id) { var el = document.getElementById(id); if (el) el.textContent = ''; });
             allJobs = []; trainingDB = []; trainingRoster = []; trainingMeta = null; followUpAssignees = [];
             fullDataLoaded = false; jobsLoaded = false; trainingRosterLoaded = false; trainingStatsLoaded = false;
             document.getElementById('staffPreloadOverlay').hidden = true;
@@ -2607,10 +2624,12 @@
 
         var selectedJobManager = '全部'; // '全部' 或某個主管姓名
         var selectedJobBranch = '全部';
+        var selectedJobPosition = ''; // 空字串代表全部職稱。
 
         function selectJobBranch(branch) {
             selectedJobBranch = branch;
             selectedJobManager = '全部';
+            selectedJobPosition = '';
             renderJobs();
         }
 
@@ -2632,11 +2651,54 @@
             renderJobs();
         }
 
+        function selectJobPosition(position) {
+            selectedJobPosition = position;
+            renderJobs();
+        }
+
+        function clearJobFilters() {
+            selectedJobManager = '全部';
+            selectedJobPosition = '';
+            renderJobs();
+        }
+
+        function jobPositionLabel(job) {
+            var title = String(job.position || '').trim();
+            if (['保全', '日班保全', '夜班保全', '機動日保', '機動夜保', '行政保全'].indexOf(title) !== -1) return '保全';
+            if (['秘書', '社區秘書', '機動秘書', '主任秘書', '吧檯秘書', '行政秘書', '會館秘書'].indexOf(title) !== -1) return '秘書';
+            if (['經理', '經理職', '社區經理', '副理', '機電組長'].indexOf(title) !== -1) return '經理職';
+            return '其他';
+        }
+
+        function renderJobFilterOptions(visibleJobs, mgrNames, groupedJobs) {
+            var available = new Set(visibleJobs.map(jobPositionLabel));
+            var positions = ['保全', '秘書', '經理職', '其他'].filter(function(category) { return available.has(category); });
+            // 結案切換或資料更新後保留條件，呈現零筆結果，讓使用者自行清除。
+            if (selectedJobPosition && positions.indexOf(selectedJobPosition) === -1) positions.push(selectedJobPosition);
+            var managers = mgrNames.slice();
+            if (selectedJobManager !== '全部' && managers.indexOf(selectedJobManager) === -1) managers.push(selectedJobManager);
+            function fillOptions(id, entries, value) {
+                var select = document.getElementById(id);
+                if (!select) return;
+                select.replaceChildren();
+                entries.forEach(function(entry) {
+                    var option = document.createElement('option');
+                    option.value = entry.value; option.textContent = entry.label;
+                    select.appendChild(option);
+                });
+                select.value = value;
+            }
+            fillOptions('jobsPositionFilter', [{ value: '', label: '全部職稱' }].concat(positions.map(function(p) { return { value: p, label: p }; })), selectedJobPosition);
+            fillOptions('jobsManagerFilter', [{ value: '全部', label: '全部主管（' + visibleJobs.length + '）' }].concat(managers.map(function(mgr) {
+                return { value: mgr, label: mgr + '（' + (groupedJobs[mgr] || []).length + '）' };
+            })), selectedJobManager);
+        }
+
         function renderJobs() {
             renderJobBranchList();
             var visibleJobs = allJobs.filter(function(j) { return (selectedJobBranch === '全部' || j.branch === selectedJobBranch) && (showClosedJobs ? true : j.systemClosed !== '結案'); });
 
-            var groupedJobs = {};
+            var groupedJobs = Object.create(null);
             visibleJobs.forEach(function(job) {
                 var mgr = job.unitManager || "未指定主管";
                 if (!groupedJobs[mgr]) groupedJobs[mgr] = [];
@@ -2645,8 +2707,7 @@
 
             var mgrNames = Object.keys(groupedJobs).sort(function(a, b) { return groupedJobs[b].length - groupedJobs[a].length; });
 
-            // 如果目前選的主管已經沒有任何職缺了（例如全部結案被篩掉），自動退回「全部」
-            if (selectedJobManager !== '全部' && mgrNames.indexOf(selectedJobManager) === -1) selectedJobManager = '全部';
+            renderJobFilterOptions(visibleJobs, mgrNames, groupedJobs);
 
             renderManagerList(groupedJobs, mgrNames, visibleJobs.length);
             renderJobCards(groupedJobs, mgrNames);
@@ -2658,7 +2719,7 @@
             if (mgrNames.length === 0) { listEl.innerHTML = ''; return; }
 
             var allActive = selectedJobManager === '全部';
-            var html = '<button onclick="selectJobManager(\'全部\')" class="shrink-0 sm:w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors text-left ' + (allActive ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-700 hover:border-slate-200') + '">' +
+            var html = '<p class="text-xs leading-relaxed text-slate-500 px-1">目前分部職缺數（依結案設定）</p><button onclick="selectJobManager(\'全部\')" class="shrink-0 sm:w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors text-left ' + (allActive ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-100 text-slate-700 hover:border-slate-200') + '">' +
                 '<div class="w-8 h-8 rounded-full ' + (allActive ? 'bg-white/20' : 'bg-slate-900 text-white') + ' flex items-center justify-center font-black text-xs shrink-0"><i data-lucide="layout-grid" class="w-4 h-4"></i></div>' +
                 '<span class="font-black text-sm tracking-wide whitespace-nowrap sm:whitespace-normal">全部主管</span>' +
                 '<span class="ml-auto text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ' + (allActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400') + '">' + totalCount + '</span>' +
@@ -2679,15 +2740,51 @@
             listEl.innerHTML = html;
         }
 
+        // 僅統計目前篩選交集中的未結案職缺；不以姓名或面試狀態推測人選。
+        function renderJobStatistics(jobs) {
+            var open = jobs.filter(function(job) { return job.systemClosed !== '結案'; });
+            var filled = open.filter(function(job) { return job.hasCandidate === '有'; }).length;
+            var pending = open.filter(function(job) { return job.hasCandidate !== '有'; });
+            var communities = new Set();
+            var unnamed = 0;
+            pending.forEach(function(job) {
+                var name = String(job.community || '').trim();
+                if (!name) { unnamed++; return; }
+                // 以分部、區域及社區名稱辨識社區，避免跨分部同名社區被合併。
+                communities.add(JSON.stringify([String(job.branch || '').trim(), String(job.location || '').trim(), name]));
+            });
+            var el = document.getElementById('jobsStatistics');
+            if (el) {
+                el.replaceChildren();
+                [['職缺總數', open.length], ['已有人選', filled], ['尚待補齊', pending.length], ['待補社區', communities.size]].forEach(function(item) {
+                    var box = document.createElement('div');
+                    box.className = 'rounded-xl bg-slate-50 p-3 min-w-0';
+                    var label = document.createElement('span');
+                    label.className = 'block text-xs font-bold text-slate-500'; label.textContent = item[0];
+                    var value = document.createElement('strong');
+                    value.className = 'block mt-1 text-2xl font-black text-slate-900'; value.textContent = String(item[1]);
+                    box.appendChild(label); box.appendChild(value); el.appendChild(box);
+                });
+            }
+            var note = document.getElementById('jobsStatisticsNote');
+            if (note) note.textContent = '統計依目前篩選條件，僅計未結案職缺；待補社區依分部、區域及社區名稱去重。' +
+                (showClosedJobs ? ' 已結案另有 ' + (jobs.length - open.length) + ' 筆。' : '') +
+                (unnamed ? ' 另有 ' + unnamed + ' 筆待補職缺未填社區，未計入社區數。' : '');
+        }
+
         function renderJobCards(groupedJobs, mgrNames) {
             var list = document.getElementById('jobsList');
 
             var jobsToShow = selectedJobManager === '全部' ?
                 mgrNames.reduce(function(acc, mgr) { return acc.concat(groupedJobs[mgr]); }, []) :
                 (groupedJobs[selectedJobManager] || []);
+            jobsToShow = jobsToShow.filter(function(job) { return !selectedJobPosition || jobPositionLabel(job) === selectedJobPosition; });
+            var summary = document.getElementById('jobsFilterSummary');
+            if (summary) summary.textContent = (selectedJobManager === '全部' ? '全部主管' : selectedJobManager) + ' · ' + (selectedJobPosition || '全部職稱') + ' · 符合條件：' + jobsToShow.length + ' 筆';
+            renderJobStatistics(jobsToShow);
 
             if (jobsToShow.length === 0) {
-                list.innerHTML = '<div class="py-20 text-center border-2 border-dashed border-slate-100 rounded-[40px] text-slate-300 italic font-black text-sm">目前無符合職缺</div>';
+                list.innerHTML = '<div class="col-span-full px-4 py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-bold text-sm">目前沒有符合條件的職缺<p class="mt-2 font-normal leading-relaxed">請調整主管或職稱，或清除篩選。</p></div>';
                 return;
             }
 
