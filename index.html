@@ -1107,6 +1107,49 @@
         // （Apps Script 編輯器 -> 部署 -> 管理部署作業 -> 網頁應用程式網址）。
         var GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwMlvypW_9ut67JTlOuy4JbP9C9uuSZz92jMKWLNxMjMFx7cJHbklmKsBE4cRiK1Z7LTw/exec';
 
+        // 僅保存連線中繼資訊；不保存權杖、參數、回應內容或完整網址。
+        var staffHttpDiagnostics = [];
+        function fetchStaffPreloadResponse(args) {
+            var epoch = staffPreloadEpoch, token = args[0], attempt = 0;
+            function send() {
+                attempt++;
+                var started = Date.now(), status = 0, responseKind = 'network';
+                return fetch(GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ fn: 'apiGetStaffPreload', args: args })
+                }).then(function(res) {
+                    status = res.status;
+                    responseKind = /json/i.test(res.headers.get('Content-Type') || '') ? 'json' : 'other';
+                    if (!res.ok) {
+                        var error = Error('HTTP_' + status);
+                        error.retryable = [429, 502, 503, 504].indexOf(status) >= 0;
+                        throw error;
+                    }
+                    return res.text().then(function(text) {
+                        try { JSON.parse(text); }
+                        catch (e) { var error = Error('INVALID_JSON'); error.retryable = true; throw error; }
+                        return text;
+                    });
+                }).catch(function(error) {
+                    var code = status ? (error.message === 'INVALID_JSON' ? 'INVALID_JSON' : 'HTTP_' + status) : 'TRANSPORT_ERROR';
+                    var entry = { section: ['talent', 'jobs', 'training', 'assignees'].indexOf(args[1]) >= 0 ? args[1] : 'unknown', attempt: attempt, status: status, responseKind: responseKind, code: code, elapsedMs: Date.now() - started };
+                    staffHttpDiagnostics.push(entry);
+                    if (staffHttpDiagnostics.length > 40) staffHttpDiagnostics.shift();
+                    console.info('staffHttp', JSON.stringify(entry));
+                    // 最多兩次，舊工作階段不重送；寫入 API 絕不套用重試。
+                    if (attempt < 2 && (status === 0 || error.retryable) && token === authToken && epoch === staffPreloadEpoch) {
+                        return new Promise(function(resolve) { setTimeout(resolve, 1500 + Math.floor(Math.random() * 500)); }).then(function() {
+                            if (token !== authToken || epoch !== staffPreloadEpoch) throw Error('STALE_REQUEST');
+                            return send();
+                        });
+                    }
+                    throw Error(code);
+                });
+            }
+            return send();
+        }
+
         function createGasRunner() {
             var successHandler = null;
             var failureHandler = null;
@@ -1122,7 +1165,7 @@
                     return function () {
                         var args = Array.prototype.slice.call(arguments);
                         var refreshRequestTracked = trackManualRefreshRequest();
-                        fetch(GAS_WEB_APP_URL, {
+                        var response = prop === 'apiGetStaffPreload' ? fetchStaffPreloadResponse(args) : fetch(GAS_WEB_APP_URL, {
                             method: 'POST',
                             // 這裡一定要用 text/plain，不能用 application/json，
                             // 不然瀏覽器會先送一個 Apps Script 沒辦法正確處理的
@@ -1130,7 +1173,8 @@
                             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                             body: JSON.stringify({ fn: prop, args: args })
                         })
-                        .then(function (res) { return res.text(); })
+                        .then(function (res) { return res.text(); });
+                        response
                         .then(function (text) {
                             if (successHandler) successHandler(text);
                             finishManualRefreshRequest(refreshRequestTracked);
