@@ -623,11 +623,25 @@
                     </div>
 
                     <div class="stat-card space-y-4">
-                        <div class="flex justify-between items-center border-b border-slate-50 pb-2">
-                            <p id="interviewChartTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">招募波動趨勢</p>
+                        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-slate-50 pb-2">
+                            <p id="interviewChartTitle" class="text-xs font-bold text-slate-500">招募人數與移動平均</p>
+                            <label class="text-xs text-slate-600">平均／趨勢指標
+                                <select id="recruitmentTrendMetric" onchange="refreshRecruitmentAnalysisCharts()" class="border border-slate-200 rounded-lg p-2 bg-white">
+                                    <option value="hired">錄取人數</option><option value="total">應徵總數</option><option value="noShow">跳票人數</option>
+                                </select>
+                            </label>
                         </div>
-                        <div class="relative h-56 w-full">
-                            <canvas id="interviewChart"></canvas>
+                        <div class="relative h-72 w-full"><canvas id="interviewChart" role="img" aria-label="應徵、錄取、跳票人數與移動平均"></canvas></div>
+                        <p id="recruitmentChartNote" role="status" aria-live="polite" class="text-xs text-slate-500 leading-relaxed"></p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="stat-card space-y-4">
+                            <p class="text-xs font-bold text-slate-500">整體趨勢線（依所選指標）</p>
+                            <div class="relative h-72 w-full"><canvas id="interviewTrendChart" role="img" aria-label="所選指標與線性趨勢"></canvas></div>
+                        </div>
+                        <div class="stat-card space-y-4">
+                            <p class="text-xs font-bold text-slate-500">錄取率與跳票率</p>
+                            <div class="relative h-72 w-full"><canvas id="interviewRateChart" role="img" aria-label="錄取率與跳票率，分母為當期應徵總數"></canvas></div>
                         </div>
                     </div>
 
@@ -3278,149 +3292,136 @@
             drawInterviewChart(filteredData, selectedMonth);
         }
 
+        var interviewTrendChartInstance = null;
+        var interviewRateChartInstance = null;
+        var interviewChartLastInput = null;
+
+        function calculateRecruitmentMovingAverage(values, windowSize) {
+            return values.map(function(_, index) {
+                if (index + 1 < windowSize) return null;
+                return values.slice(index + 1 - windowSize, index + 1).reduce(function(sum, value) { return sum + value; }, 0) / windowSize;
+            });
+        }
+
+        function calculateRecruitmentTrend(values) {
+            if (values.length < 2) return values.map(function() { return null; });
+            var center = (values.length - 1) / 2;
+            var mean = values.reduce(function(sum, value) { return sum + value; }, 0) / values.length;
+            var numerator = 0, denominator = 0;
+            values.forEach(function(value, index) {
+                numerator += (index - center) * (value - mean);
+                denominator += Math.pow(index - center, 2);
+            });
+            return values.map(function(_, index) { return mean + numerator / denominator * (index - center); });
+        }
+
+        function buildRecruitmentChartData(filteredData) {
+            var valid = (filteredData || []).filter(function(item) {
+                var value = String(item['時間戳記'] || '').substring(0, 10);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+                var date = new Date(value + 'T00:00:00Z');
+                return Number.isFinite(date.getTime()) && date.toISOString().substring(0, 10) === value;
+            });
+            var months = new Set(valid.map(function(item) { return String(item['時間戳記']).substring(0, 7); }));
+            var daily = months.size === 1;
+            var grouped = Object.create(null);
+            valid.forEach(function(item) {
+                var key = String(item['時間戳記']).substring(0, daily ? 10 : 7);
+                if (!grouped[key]) grouped[key] = { total: 0, hired: 0, noShow: 0 };
+                grouped[key].total++;
+                var result = item._result || item['面試結果'];
+                if (result === '錄取') grouped[key].hired++;
+                if (result === '跳票') grouped[key].noShow++;
+            });
+            var keys = Object.keys(grouped).sort();
+            var periods = [];
+            if (keys.length) {
+                var cursor = new Date(keys[0] + (daily ? '' : '-01') + 'T00:00:00Z');
+                var end = keys[keys.length - 1];
+                while (cursor.toISOString().substring(0, daily ? 10 : 7) <= end) {
+                    periods.push(cursor.toISOString().substring(0, daily ? 10 : 7));
+                    if (daily) cursor.setUTCDate(cursor.getUTCDate() + 1);
+                    else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+                }
+            }
+            var data = { daily: daily, labels: periods.map(function(key) { return daily ? key.substring(5) : key; }), total: [], hired: [], noShow: [], hiredRate: [], noShowRate: [] };
+            periods.forEach(function(key) {
+                var row = grouped[key] || { total: 0, hired: 0, noShow: 0 };
+                data.total.push(row.total); data.hired.push(row.hired); data.noShow.push(row.noShow);
+                data.hiredRate.push(row.total ? row.hired / row.total * 100 : null);
+                data.noShowRate.push(row.total ? row.noShow / row.total * 100 : null);
+            });
+            return data;
+        }
+
+        function refreshRecruitmentAnalysisCharts() {
+            if (interviewChartLastInput) drawInterviewChart(interviewChartLastInput.data, interviewChartLastInput.month);
+        }
+
         function drawInterviewChart(filteredData, selectedMonth) {
+            interviewChartLastInput = { data: filteredData, month: selectedMonth };
             if (!window.Chart) {
-                loadChartJs().then(function() {
-                    drawInterviewChart(filteredData, selectedMonth);
-                }).catch(function() {
-                    showChartLoadError('interviewChart');
+                loadChartJs().then(function() { refreshRecruitmentAnalysisCharts(); }).catch(function() {
+                    ['interviewChart', 'interviewTrendChart', 'interviewRateChart'].forEach(showChartLoadError);
                 });
                 return;
             }
-            clearChartLoadError('interviewChart');
-            var ctx = document.getElementById('interviewChart');
-            if (!ctx) return;
-
-            if (!filteredData || filteredData.length === 0) {
-                if (interviewChartInstance) interviewChartInstance.destroy();
-                document.getElementById('interviewChartTitle').innerText = "招募趨勢 (無資料)";
+            ['interviewChart', 'interviewTrendChart', 'interviewRateChart'].forEach(clearChartLoadError);
+            [interviewChartInstance, interviewTrendChartInstance, interviewRateChartInstance].forEach(function(chart) { if (chart) chart.destroy(); });
+            interviewChartInstance = interviewTrendChartInstance = interviewRateChartInstance = null;
+            var data = buildRecruitmentChartData(filteredData);
+            var title = document.getElementById('interviewChartTitle');
+            var note = document.getElementById('recruitmentChartNote');
+            if (!data.labels.length) {
+                if (title) title.textContent = '招募趨勢（無有效日期資料）';
+                if (note) note.textContent = '目前篩選範圍沒有可繪製的資料。';
                 return;
             }
-
-            var months = new Set();
-            filteredData.forEach(function(item) {
-                if (item["時間戳記"] && item["時間戳記"].length >= 7) {
-                    months.add(item["時間戳記"].substring(0, 7));
-                }
-            });
-
-            var isDaily = months.size <= 1;
-            var titleEl = document.getElementById('interviewChartTitle');
-            if (titleEl) {
-                if (selectedMonth === 'all') titleEl.innerText = "全部面試趨勢 (依月份)";
-                else if (selectedMonth === 'custom') titleEl.innerText = isDaily ? "自訂區間趨勢 (依日期)" : "自訂區間趨勢 (依月份)";
-                else titleEl.innerText = selectedMonth + " 面試趨勢 (依日期)";
+            var selector = document.getElementById('recruitmentTrendMetric');
+            var metric = selector ? selector.value : 'hired';
+            if (!['total', 'hired', 'noShow'].includes(metric)) metric = 'hired';
+            var metricName = { total: '應徵總數', hired: '錄取人數', noShow: '跳票人數' }[metric];
+            var windowSize = data.daily ? 7 : 3;
+            var windowName = data.daily ? '7 日' : '3 個月';
+            if (title) title.textContent = '招募人數與' + windowName + '移動平均（依' + (data.daily ? '日期' : '月份') + '）';
+            if (note) note.textContent = '依履歷時間戳記分組，結果採目前狀態；比率分母為同期間應徵總數。無應徵期間比率留空。移動平均需滿 ' + windowName + '，趨勢線需至少 2 期，僅描述已選期間、不作預測；最新期間可能尚未結束。';
+            function line(label, values, color, dash) {
+                return { label: label, type: 'line', data: values, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 3, tension: 0, fill: false, spanGaps: false, borderDash: dash || [] };
             }
-
-            var groupedData = {};
-            filteredData.forEach(function(item) {
-                var dStr = item["時間戳記"] || "";
-                if (dStr.length >= 10) {
-                    var key = isDaily ? dStr.substring(5, 10) : dStr.substring(0, 7); 
-                    if (!groupedData[key]) {
-                        groupedData[key] = { total: 0, hired: 0, noShow: 0 };
-                    }
-                    groupedData[key].total++;
-                    var res = item._result || item["面試結果"];
-                    if (res === "錄取") groupedData[key].hired++;
-                    else if (res === "跳票") groupedData[key].noShow++;
-                }
-            });
-
-            var sortedKeys = Object.keys(groupedData).sort();
-            var labels = [];
-            var datasetTotal = [];
-            var datasetHired = [];
-            var datasetNoShow = []; 
-
-            sortedKeys.forEach(function(k) {
-                var label = isDaily ? k : parseInt(k.split('-')[1], 10) + '月';
-                labels.push(label);
-                
-                var d = groupedData[k];
-                datasetTotal.push(d.total);
-                datasetHired.push(d.hired);
-                datasetNoShow.push(d.noShow);
-            });
-
-            if (interviewChartInstance) {
-                interviewChartInstance.destroy(); 
-            }
-
-            interviewChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: '應徵總數',
-                            type: 'bar',
-                            data: datasetTotal,
-                            backgroundColor: 'rgba(241, 245, 249, 0.8)',
-                            borderRadius: 4,
-                            barPercentage: 0.6
-                        },
-                        {
-                            label: '錄取人數',
-                            type: 'line',
-                            data: datasetHired,
-                            borderColor: '#6366f1',
-                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                            tension: 0.4,
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            fill: true
-                        },
-                        {
-                            label: '跳票人數',
-                            type: 'line',
-                            data: datasetNoShow,
-                            borderColor: '#f43f5e',
-                            backgroundColor: 'transparent',
-                            tension: 0.4,
-                            borderWidth: 2,
-                            pointRadius: 3,
-                            borderDash: [5, 5]
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+            function options(percent) {
+                return {
+                    responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                usePointStyle: true,
-                                boxWidth: 6,
-                                font: { size: 10, family: "'Plus Jakarta Sans', 'Noto Sans TC', sans-serif" }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { family: "'Plus Jakarta Sans', 'Noto Sans TC', sans-serif", size: 11 },
-                            bodyFont: { family: "'Plus Jakarta Sans', 'Noto Sans TC', sans-serif", size: 11, weight: 'bold' },
-                            padding: 10, cornerRadius: 8
-                        }
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
+                        tooltip: { callbacks: { label: function(context) { return context.dataset.label + '：' + Number(context.parsed.y).toLocaleString('zh-TW', { maximumFractionDigits: 1 }) + (percent ? '%' : ' 人'); } } }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { font: { size: 9 }, stepSize: 1 },
-                            grid: { color: '#f8fafc' },
-                            border: { display: false }
-                        },
-                        x: {
-                            ticks: { font: { size: 9, weight: 'bold' } },
-                            grid: { display: false },
-                            border: { display: false }
-                        }
+                        x: { title: { display: true, text: data.daily ? '日期' : '年份／月份' }, grid: { display: false } },
+                        y: { beginAtZero: true, max: percent ? 100 : undefined, title: { display: true, text: percent ? '比率（%）' : '人數' }, ticks: { callback: function(value) { return percent ? value + '%' : value; } } }
                     }
-                }
-            });
+                };
+            }
+            function make(id, datasets, percent) {
+                var canvas = document.getElementById(id);
+                return canvas ? new Chart(canvas, { type: 'line', data: { labels: data.labels, datasets: datasets }, options: options(percent) }) : null;
+            }
+            interviewChartInstance = make('interviewChart', [
+                { label: '應徵總數', type: 'bar', data: data.total, backgroundColor: 'rgba(148,163,184,0.35)', borderRadius: 4 },
+                line('錄取人數', data.hired, '#6366f1'),
+                line('跳票人數', data.noShow, '#e11d48', [5, 5]),
+                line(metricName + ' ' + windowName + '移動平均', calculateRecruitmentMovingAverage(data[metric], windowSize), '#059669', [10, 3])
+            ], false);
+            interviewTrendChartInstance = make('interviewTrendChart', [
+                line(metricName, data[metric], '#6366f1'),
+                line(metricName + '線性趨勢', calculateRecruitmentTrend(data[metric]), '#d97706', [7, 5])
+            ], false);
+            interviewRateChartInstance = make('interviewRateChart', [
+                line('錄取率', data.hiredRate, '#6366f1'),
+                Object.assign(line('跳票率', data.noShowRate, '#e11d48', [5, 5]), { pointStyle: 'rect' })
+            ], true);
         }
-        
+
         function debounceTalentSearch() {
             resetTalentSearch(); currentPage = 1;
             showTalentSearchStatus('搜尋中…', false);
