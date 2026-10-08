@@ -631,17 +631,20 @@
                                 </select>
                             </label>
                         </div>
-                        <div class="relative h-72 w-full"><canvas id="interviewChart" role="img" aria-label="應徵、錄取、跳票人數與移動平均"></canvas></div>
+                        <div class="relative h-72 w-full" style="padding-left:28px;box-sizing:border-box"><span data-recruitment-axis="interviewChart" aria-hidden="true" style="position:absolute;left:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;width:24px;font-size:12px;color:#64748b;line-height:1.3"><span>人</span><span>數</span></span><canvas id="interviewChart" role="img" aria-label="應徵、錄取、跳票人數與移動平均"></canvas></div>
+                        <p id="recruitmentCountInterpretation" role="status" aria-live="polite" class="text-xs text-slate-600 leading-relaxed"></p>
                         <p id="recruitmentChartNote" role="status" aria-live="polite" class="text-xs text-slate-500 leading-relaxed"></p>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div class="stat-card space-y-4">
                             <p class="text-xs font-bold text-slate-500">整體趨勢線（依所選指標）</p>
-                            <div class="relative h-72 w-full"><canvas id="interviewTrendChart" role="img" aria-label="所選指標與線性趨勢"></canvas></div>
+                            <div class="relative h-72 w-full" style="padding-left:28px;box-sizing:border-box"><span data-recruitment-axis="interviewTrendChart" aria-hidden="true" style="position:absolute;left:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;width:24px;font-size:12px;color:#64748b;line-height:1.3"><span>人</span><span>數</span></span><canvas id="interviewTrendChart" role="img" aria-label="所選指標與線性趨勢"></canvas></div>
+                        <p id="recruitmentTrendInterpretation" role="status" aria-live="polite" class="text-xs text-slate-600 leading-relaxed"></p>
                         </div>
                         <div class="stat-card space-y-4">
                             <p class="text-xs font-bold text-slate-500">錄取率與跳票率</p>
-                            <div class="relative h-72 w-full"><canvas id="interviewRateChart" role="img" aria-label="錄取率與跳票率，分母為當期應徵總數"></canvas></div>
+                            <div class="relative h-72 w-full" style="padding-left:28px;box-sizing:border-box"><span data-recruitment-axis="interviewRateChart" aria-hidden="true" style="position:absolute;left:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;width:24px;font-size:12px;color:#64748b;line-height:1.3"><span>比</span><span>率</span><span>（%）</span></span><canvas id="interviewRateChart" role="img" aria-label="錄取率與跳票率，分母為當期應徵總數"></canvas></div>
+                        <p id="recruitmentRateInterpretation" role="status" aria-live="polite" class="text-xs text-slate-600 leading-relaxed"></p>
                         </div>
                     </div>
 
@@ -3388,7 +3391,7 @@
                     else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
                 }
             }
-            var data = { daily: daily, labels: periods.map(function(key) { return daily ? key.substring(5) : key; }), total: [], hired: [], noShow: [], hiredRate: [], noShowRate: [] };
+            var data = { daily: daily, periods: periods, labels: periods.map(function(key) { return daily ? key.substring(5) : key; }), total: [], hired: [], noShow: [], hiredRate: [], noShowRate: [] };
             periods.forEach(function(key) {
                 var row = grouped[key] || { total: 0, hired: 0, noShow: 0 };
                 data.total.push(row.total); data.hired.push(row.hired); data.noShow.push(row.noShow);
@@ -3396,6 +3399,48 @@
                 data.noShowRate.push(row.total ? row.noShow / row.total * 100 : null);
             });
             return data;
+        }
+
+        function buildRecruitmentChartInterpretation(data, metric, now, range) {
+            var names = { total: '應徵總數', hired: '錄取人數', noShow: '跳票人數' };
+            if (!Object.prototype.hasOwnProperty.call(names, metric)) metric = 'hired';
+            var parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now || new Date());
+            function part(type) { return parts.find(function(item) { return item.type === type; }).value; }
+            var today = part('year') + '-' + part('month') + '-' + part('day');
+            var cutoff = data.daily ? today : today.substring(0, 7);
+            var indices = [], incomplete = false;
+            (data.periods || []).forEach(function(key, i) {
+                var start = data.daily ? key : key + '-01';
+                var end = data.daily ? key : new Date(Date.UTC(Number(key.substring(0, 4)), Number(key.substring(5, 7)), 0)).toISOString().substring(0, 10);
+                var partial = key >= cutoff || (range && ((range.start && start < range.start) || (range.end && end > range.end)));
+                if (partial) incomplete = true;
+                else indices.push(i);
+            });
+            var reminder = incomplete ? ' 最新期間或篩選邊界未完整，未納入期間增減比較；圖表仍保留顯示。' : '';
+            var insufficient = '資料不足，暫不比較。' + reminder;
+            if (indices.length < 2) return { count: insufficient, trend: insufficient, rate: insufficient };
+            var previous = indices[indices.length - 2], latest = indices[indices.length - 1];
+            var periods = data.periods[previous] + ' → ' + data.periods[latest];
+            function number(value) { return Number(value).toLocaleString('zh-TW', { maximumFractionDigits: 1 }); }
+            function change(value, unit) {
+                var rounded = Math.round(Math.abs(value) * 10) / 10;
+                return rounded === 0 ? '持平' : (value > 0 ? '增加 ' : '減少 ') + number(rounded) + unit;
+            }
+            var count = periods + '：應徵總數 ' + data.total[previous] + ' → ' + data.total[latest] + ' 人（' + change(data.total[latest] - data.total[previous], ' 人') + '）';
+            if (metric !== 'total') count += '；' + names[metric] + ' ' + data[metric][previous] + ' → ' + data[metric][latest] + ' 人（' + change(data[metric][latest] - data[metric][previous], ' 人') + '）';
+            var windowSize = data.daily ? 7 : 3;
+            var windowStart = latest + 1 - windowSize;
+            if (windowStart >= 0 && indices.filter(function(i) { return i >= windowStart && i <= latest; }).length === windowSize) {
+                count += '；截至 ' + data.periods[latest] + ' 的 ' + (data.daily ? '7 日' : '3 個月') + names[metric] + '移動平均為 ' + number(calculateRecruitmentMovingAverage(data[metric], windowSize)[latest]) + ' 人';
+            }
+            var fitted = calculateRecruitmentTrend(data[metric]);
+            var direction = change(fitted[fitted.length - 1] - fitted[0], ' 人');
+            var trend = '所選範圍的' + names[metric] + '線性趨勢：' + (direction === '持平' ? '大致持平' : direction.startsWith('增加') ? '向上' : '向下') + '。僅描述歷史資料，不作預測。';
+            if (incomplete) trend += ' 趨勢線包含尚未完整的期間，方向可能受其影響。';
+            var rate;
+            if (!data.total[previous] || !data.total[latest]) rate = periods + '：應徵人數為零，錄取率與跳票率暫不比較。';
+            else rate = periods + '：錄取率 ' + number(data.hiredRate[previous]) + '% → ' + number(data.hiredRate[latest]) + '%（' + change(data.hiredRate[latest] - data.hiredRate[previous], ' 個百分點') + '）；跳票率 ' + number(data.noShowRate[previous]) + '% → ' + number(data.noShowRate[latest]) + '%（' + change(data.noShowRate[latest] - data.noShowRate[previous], ' 個百分點') + '）。應徵人數分別為 ' + data.total[previous] + '、' + data.total[latest] + ' 人。';
+            return { count: count + '。' + reminder, trend: trend, rate: rate + reminder };
         }
 
         function refreshRecruitmentAnalysisCharts() {
@@ -3414,6 +3459,16 @@
             [interviewChartInstance, interviewTrendChartInstance, interviewRateChartInstance].forEach(function(chart) { if (chart) chart.destroy(); });
             interviewChartInstance = interviewTrendChartInstance = interviewRateChartInstance = null;
             var data = buildRecruitmentChartData(filteredData);
+            var selector = document.getElementById('recruitmentTrendMetric');
+            var metric = selector ? selector.value : 'hired';
+            if (!['total', 'hired', 'noShow'].includes(metric)) metric = 'hired';
+            var startField = document.getElementById('statStartDate'), endField = document.getElementById('statEndDate');
+            var range = selectedMonth === 'custom' ? { start: startField ? startField.value : '', end: endField ? endField.value : '' } : null;
+            var interpretation = buildRecruitmentChartInterpretation(data, metric, new Date(), range);
+            [['recruitmentCountInterpretation', 'count'], ['recruitmentTrendInterpretation', 'trend'], ['recruitmentRateInterpretation', 'rate']].forEach(function(item) {
+                var element = document.getElementById(item[0]);
+                if (element) element.textContent = interpretation[item[1]];
+            });
             var title = document.getElementById('interviewChartTitle');
             var note = document.getElementById('recruitmentChartNote');
             if (!data.labels.length) {
@@ -3421,9 +3476,6 @@
                 if (note) note.textContent = '目前篩選範圍沒有可繪製的資料。';
                 return;
             }
-            var selector = document.getElementById('recruitmentTrendMetric');
-            var metric = selector ? selector.value : 'hired';
-            if (!['total', 'hired', 'noShow'].includes(metric)) metric = 'hired';
             var metricName = { total: '應徵總數', hired: '錄取人數', noShow: '跳票人數' }[metric];
             var windowSize = data.daily ? 7 : 3;
             var windowName = data.daily ? '7 日' : '3 個月';
@@ -3442,7 +3494,7 @@
                     },
                     scales: {
                         x: { title: { display: true, text: data.daily ? '日期' : '年份／月份' }, grid: { display: false } },
-                        y: { beginAtZero: true, max: percent ? 100 : undefined, title: { display: true, text: percent ? '比率（%）' : '人數' }, ticks: { callback: function(value) { return percent ? value + '%' : value; } } }
+                        y: { beginAtZero: true, max: percent ? 100 : undefined, title: { display: false }, ticks: { callback: function(value) { return percent ? value + '%' : value; } } }
                     }
                 };
             }
