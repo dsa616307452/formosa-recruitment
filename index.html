@@ -2658,7 +2658,7 @@
             return result;
         }
         function checkJobSaveResult(op) {
-            if (op.checking || op.finished || op.token !== authToken) return;
+            if (op.checking || op.verifying || op.finished || op.token !== authToken) return;
             op.checking = true;
             op.btn.disabled = true;
             op.btn.textContent = '核對儲存結果中…';
@@ -2690,14 +2690,22 @@
                 checkJobSaveResult(op);
             }
             op.finish = function(result) {
-                if (op.finished || op.token !== authToken) return;
-                op.finished = true; clearTimeout(op.timer);
-                delete jobSaveOperations[kind];
-                op.controls.forEach(function(state) { state.el.disabled = state.disabled; });
-                btn.disabled = false; btn.innerHTML = op.original;
-                if (result.status === 'success') { onSuccess(result); }
-                else if (String(result.message || '').indexOf('登入') > -1) { handleSessionExpired(result.message); }
-                else { alert('儲存失敗：' + (result.message || '請稍後再試，輸入內容已保留。')); }
+                if (op.finished || op.verifying || op.token !== authToken) return;
+                clearTimeout(op.timer);
+                function settled(verified) {
+                    if (op.finished || op.token !== authToken) return;
+                    op.finished = true;
+                    delete jobSaveOperations[kind];
+                    op.controls.forEach(function(state) { state.el.disabled = state.disabled; });
+                    btn.disabled = false; btn.innerHTML = op.original;
+                    if (verified.status === 'success') { onSuccess(verified); }
+                    else if (String(verified.message || '').indexOf('登入') > -1) { handleSessionExpired(verified.message); }
+                    else { alert('儲存失敗：' + (verified.message || '請稍後再試，輸入內容已保留。')); }
+                }
+                if (result.status !== 'success') { settled(result); return; }
+                op.verifying = true;
+                btn.disabled = true; btn.textContent = '已儲存，確認主管中…';
+                verifySavedJobManager(result, jobData, op.token, settled);
             };
             op.timer = setTimeout(uncertain, 30000);
             try {
@@ -2732,7 +2740,7 @@
                 isUrgent: document.getElementById('jedUrgent').checked ? "TRUE" : ""
             };
 
-            runJobSave("update", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(result.unitManager === jobData.unitManager ? "職缺更新成功！" : "職缺已儲存，但主管姓名尚未核對一致。請重新開啟確認，勿重複新增。"); closeJobDetailModal(); fetchJobs(true); });
+            runJobSave("update", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(jobSaveSuccessMessage('update', result)); closeJobDetailModal(); fetchJobs(true); });
         }
 
         function submitJob(e) {
@@ -2755,7 +2763,42 @@
                 unitManager: document.getElementById('jManager').value,
                 isUrgent: document.getElementById('jUrgent').checked ? "TRUE" : ""
             };
-            runJobSave("submit", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(result.unitManager === jobData.unitManager ? "職缺新增成功！" : "職缺已儲存，但主管姓名尚未核對一致。請重新開啟確認，勿重複新增。"); document.getElementById("jobForm").reset(); toggleCandName(); closeJobModal(); fetchJobs(true); });
+            runJobSave("submit", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(jobSaveSuccessMessage('submit', result)); document.getElementById("jobForm").reset(); toggleCandName(); closeJobModal(); fetchJobs(true); });
+        }
+
+        function verifySavedJobManager(result, form, token, done) {
+            var expected = String(form.unitManager || '').trim();
+            var rowId = result.rowId || form.rowId;
+            function checked(actual) {
+                return Object.assign({}, result, { rowId: rowId, unitManager: actual, managerVerification: actual.trim() === expected ? 'matched' : 'mismatch' });
+            }
+            if (typeof result.unitManager === 'string') { done(checked(result.unitManager)); return; }
+            var unavailable = Object.assign({}, result, { managerVerification: 'unavailable' });
+            // 舊部署沒有回傳主管時，只讀取有識別碼的同筆職缺；不以案場或姓名猜測，也不再次寫入。
+            if (!rowId) { done(unavailable); return; }
+            var finished = false;
+            var timer = setTimeout(function() { finish(unavailable); }, 15000);
+            function finish(value) {
+                if (finished) return;
+                finished = true; clearTimeout(timer); done(value);
+            }
+            try {
+                google.script.run.withSuccessHandler(function(res) {
+                    if (finished) return;
+                    try {
+                        var jobs = typeof res === 'string' ? JSON.parse(res) : res;
+                        var saved = Array.isArray(jobs) ? jobs.find(function(job) { return job && String(job.rowId) === String(rowId); }) : null;
+                        if (saved && typeof saved.unitManager === 'string') { finish(checked(saved.unitManager)); return; }
+                    } catch (ignore) {}
+                    finish(unavailable);
+                }).withFailureHandler(function() { finish(unavailable); }).apiGetJobs(token);
+            } catch (ignore) { finish(unavailable); }
+        }
+
+        function jobSaveSuccessMessage(kind, result) {
+            if (result.managerVerification === 'matched') return kind === 'update' ? '職缺更新成功！' : '職缺新增成功！';
+            if (result.managerVerification === 'mismatch') return '職缺已儲存，但讀回的主管姓名與本次輸入不同。請重新開啟同筆職缺確認，勿重複新增。';
+            return '職缺已儲存。目前暫時無法確認主管姓名，請重新開啟同筆職缺查看，勿重複新增。';
         }
 
         function validateJobManager(id) {
