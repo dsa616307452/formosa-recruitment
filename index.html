@@ -822,7 +822,7 @@
                 </div>
                 
                 <div class="relative">
-                    <input type="text" id="mInterviewer" placeholder="選擇或輸入面試官姓名..." oninput="comboFilter('mInterviewer')" onfocus="comboOpen('mInterviewer')" onblur="comboBlur('mInterviewer')" autocomplete="off" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm outline-none">
+                    <input type="text" id="mInterviewer" onkeydown="comboKeydown(event, 'mInterviewer')" placeholder="選擇或輸入面試官姓名..." oninput="comboFilter('mInterviewer')" onfocus="comboOpen('mInterviewer')" onblur="comboBlur('mInterviewer')" autocomplete="off" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm outline-none">
                     <div id="mInterviewer_panel" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
                     <p id="mInterviewer_warn" class="hidden text-[10px] font-bold text-amber-500 mt-1 ml-1">⚠️ 名單中沒有這個名字，確認沒打錯字的話，送出後會建立新名字</p>
                 </div>
@@ -1011,7 +1011,7 @@
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">有無人選</label><select id="jedHasCand" class="form-input appearance-none" onchange="toggleEditCandName()"><option value="無">無</option><option value="有">有</option></select></div><div><label class="form-label">人選名稱</label><input type="text" id="jedCandName" class="form-input" disabled></div></div>
             <div><label class="form-label">單位主管</label>
                 <div class="relative">
-                    <input type="text" id="jedManager" placeholder="可選或輸入新主管" oninput="comboFilter('jedManager')" onfocus="comboOpen('jedManager')" onblur="comboBlur('jedManager')" autocomplete="off" class="form-input">
+                    <input type="text" id="jedManager" onkeydown="comboKeydown(event, 'jedManager')" required placeholder="可選或輸入新主管" oninput="comboFilter('jedManager')" onfocus="comboOpen('jedManager')" onblur="comboBlur('jedManager')" autocomplete="off" class="form-input">
                     <div id="jedManager_panel" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
                     <p id="jedManager_warn" class="hidden text-[10px] font-bold text-amber-500 mt-1 ml-1">⚠️ 名單中沒有這個名字，確認沒打錯字的話，送出後會建立新名字</p>
                 </div>
@@ -1037,7 +1037,7 @@
             <div class="grid grid-cols-2 gap-4"><div><label class="form-label">有無人選</label><select id="jHasCand" class="form-input appearance-none" onchange="toggleCandName()"><option value="無">無</option><option value="有">有</option></select></div><div><label class="form-label">人選名稱</label><input type="text" id="jCandName" class="form-input" placeholder="無則免填" disabled></div></div>
             <div><label class="form-label">單位主管</label>
                 <div class="relative">
-                    <input type="text" id="jManager" placeholder="可選或輸入新主管" oninput="comboFilter('jManager')" onfocus="comboOpen('jManager')" onblur="comboBlur('jManager')" autocomplete="off" class="form-input">
+                    <input type="text" id="jManager" onkeydown="comboKeydown(event, 'jManager')" required placeholder="可選或輸入新主管" oninput="comboFilter('jManager')" onfocus="comboOpen('jManager')" onblur="comboBlur('jManager')" autocomplete="off" class="form-input">
                     <div id="jManager_panel" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
                     <p id="jManager_warn" class="hidden text-[10px] font-bold text-amber-500 mt-1 ml-1">⚠️ 名單中沒有這個名字，確認沒打錯字的話，送出後會建立新名字</p>
                 </div>
@@ -1224,6 +1224,8 @@
         // 登入後把目前使用者的姓名加進面試官/主管下拉選單（找不到就新增，已經有就不重複加），
         // 這樣自動帶入的姓名點開選單也看得到、不會被誤判成「名單裡沒有」
         function addCurrentUserToComboOptions() {
+            COMBO_CONFIG.mInterviewer.options = baseInterviewerOptions.slice();
+            refreshManagerOptions();
             if (!currentUser || !currentUser.name) return;
             ['mInterviewer', 'jManager', 'jedManager'].forEach(function(inputId) {
                 var cfg = COMBO_CONFIG[inputId];
@@ -1232,6 +1234,7 @@
         }
 
         function comboRenderPanel(inputId, filterText) {
+            refreshManagerOptions();
             var cfg = COMBO_CONFIG[inputId];
             var panel = document.getElementById(inputId + '_panel');
             if (!cfg || !panel) return;
@@ -1243,7 +1246,7 @@
                 panel.innerHTML = '<div class="px-4 py-3 text-xs font-bold text-slate-300 text-center">沒有符合的名字，直接送出會建立新名字</div>';
             } else {
                 panel.innerHTML = matches.map(function(name) {
-                    return '<button type="button" class="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" onmousedown="comboSelect(\'' + inputId + '\', this.textContent)">' + escapeHtml(name) + '</button>';
+                    return '<button type="button" class="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors" onmousedown="event.preventDefault()" onclick="comboSelect(\'' + inputId + '\', this.textContent)">' + escapeHtml(name) + '</button>';
                 }).join('');
             }
             panel.classList.remove('hidden');
@@ -1253,6 +1256,25 @@
             var input = document.getElementById(inputId);
             if (!input) return;
             comboRenderPanel(inputId, input.value);
+        }
+
+        var baseManagerOptions = COMBO_CONFIG.jManager.options.slice();
+        var baseInterviewerOptions = COMBO_CONFIG.mInterviewer.options.slice();
+        function refreshManagerOptions() {
+            var names = baseManagerOptions.concat(currentUser && currentUser.name || '', (allJobs || []).map(function(job) { return job.unitManager; }));
+            var unique = names.map(function(name) { return String(name || '').trim(); }).filter(function(name, index, list) { return name && list.indexOf(name) === index; });
+            COMBO_CONFIG.jManager.options = unique;
+            COMBO_CONFIG.jedManager.options = unique;
+        }
+
+        function comboKeydown(event, inputId) {
+            var panel = document.getElementById(inputId + '_panel');
+            if (event.key === 'Escape') { panel.classList.add('hidden'); return; }
+            if (event.key !== 'ArrowDown') return;
+            event.preventDefault();
+            comboOpen(inputId);
+            var first = panel.querySelector('button');
+            if (first) first.focus();
         }
 
         function comboFilter(inputId) {
@@ -1268,6 +1290,8 @@
             input.value = name;
             var panel = document.getElementById(inputId + '_panel');
             if (panel) panel.classList.add('hidden');
+            input.focus();
+            if (panel) panel.classList.add('hidden');
             comboCheckWarning(inputId);
         }
 
@@ -1276,7 +1300,7 @@
             // 不然 blur 會搶先關閉選單，點擊就會失效
             setTimeout(function() {
                 var panel = document.getElementById(inputId + '_panel');
-                if (panel) panel.classList.add('hidden');
+                if (panel && !panel.contains(document.activeElement)) panel.classList.add('hidden');
                 comboCheckWarning(inputId);
             }, 150);
         }
@@ -1386,16 +1410,6 @@
         var currentUser = null;
         // 常用資料僅保留於本頁記憶體；每次登入重新驗證、準備。
         var staffPreloadReady = false, staffPreloadSections = {}, staffPreloadEpoch = 0;
-        // 包含已失效但尚未回覆的請求，避免重試或換帳號突破並行上限。
-        var staffPreloadInFlight = 0, staffPreloadDiagnostics = [];
-        function recordStaffPreload(section, request, stage, code, serverMs) {
-            var entry = { section: section, attempt: request.attempt, stage: stage, code: code, elapsedMs: Date.now() - request.at };
-            if (typeof serverMs === 'number' && isFinite(serverMs) && serverMs >= 0) entry.serverMs = serverMs;
-            staffPreloadDiagnostics.push(entry);
-            if (staffPreloadDiagnostics.length > 40) staffPreloadDiagnostics.shift();
-            // 僅記錄本機分類與數值，不包含權杖、個資、原始回應或伺服器訊息。
-            console.info('staffPreload', JSON.stringify(entry));
-        }
         var staffPreloadTimer = null, staffPreloadInterval = 180000;
         var staffPreloadLabels = { talent: '人才、履歷與追蹤', jobs: '職缺', training: '訓練資料', assignees: '追蹤負責人' };
 
@@ -1478,6 +1492,7 @@
                 if (allowed.indexOf(k) === -1) return;
                 var s = staffPreloadSections[k] || (staffPreloadSections[k] = { ready: false, at: 0 });
                 // 正在讀取時標記為舊版本，等它完成後再讀，維持最多兩個請求。
+                if (s.request && s.error) { clearTimeout(s.request.slow); clearTimeout(s.request.timeout); s.request = null; }
                 if (s.request) s.request.obsolete = true;
                 s.pending = true; s.error = '';
             });
@@ -1487,7 +1502,8 @@
         function retryStaffPreload() {
             Object.keys(staffPreloadSections).forEach(function(k) {
                 var s = staffPreloadSections[k];
-                if (!s.error || s.request) return;
+                if (!s.error) return;
+                if (s.request) { clearTimeout(s.request.slow); clearTimeout(s.request.timeout); s.request = null; }
                 s.pending = true; s.error = '';
             });
             pumpStaffPreload();
@@ -1496,29 +1512,23 @@
         function pumpStaffPreload() {
             if (!authToken) return;
             var keys = requiredStaffSections();
+            var running = keys.filter(function(k) { return staffPreloadSections[k].request; }).length;
             keys.forEach(function(k) {
                 var s = staffPreloadSections[k];
-                if (staffPreloadInFlight >= 2 || !s.pending || s.request) return;
-                staffPreloadInFlight++; s.pending = false; s.slow = false; s.error = '';
-                s.attempt = (s.attempt || 0) + 1;
-                var r = { token: authToken, epoch: staffPreloadEpoch, at: Date.now(), attempt: s.attempt }; s.request = r;
-                recordStaffPreload(k, r, 'request', 'START');
+                if (running >= 2 || !s.pending || s.request) return;
+                running++; s.pending = false; s.slow = false; s.error = '';
+                var r = { token: authToken, epoch: staffPreloadEpoch, at: Date.now() }; s.request = r;
                 function active() { return r.token === authToken && r.epoch === staffPreloadEpoch && s.request === r; }
                 r.slow = setTimeout(function() { if (active()) { s.slow = true; showStaffPreload(); } }, 20000);
-                r.timeout = setTimeout(function() { if (active()) { s.slow = true; recordStaffPreload(k, r, 'request', 'SLOW_60S'); showStaffPreload(); } }, 60000);
+                r.timeout = setTimeout(function() { if (active()) { s.error = '超過 60 秒，可重試'; showStaffPreload(); if (staffPreloadReady) staffPreloadTimer = setTimeout(backgroundStaffRefresh, staffPreloadInterval); } }, 60000);
                 function finish(response, failed) {
-                    if (r.settled) return;
-                    r.settled = true; staffPreloadInFlight--;
-                    if (!active()) { pumpStaffPreload(); return; }
+                    if (!active()) return;
                     clearTimeout(r.slow); clearTimeout(r.timeout); s.request = null;
                     if (r.obsolete) { pumpStaffPreload(); return; }
-                    var data, stage = failed ? 'transport' : 'decode', code = failed ? 'TRANSPORT_ERROR' : 'INVALID_JSON';
+                    var data;
                     try {
-                        if (failed) throw Error(code);
                         data = typeof response === 'string' ? JSON.parse(response) : response;
-                        stage = 'response'; code = 'INVALID_RESPONSE';
-                        if (data && data.status === 'error') code = 'SERVER_ERROR';
-                        if (data && data.code === 'AUTH_REQUIRED') { recordStaffPreload(k, r, 'response', 'AUTH_REQUIRED'); handleSessionExpired(data.message); return; }
+                        if (data && data.code === 'AUTH_REQUIRED') { handleSessionExpired(data.message); return; }
                         if (!failed && data && data.user && staffAccessKey(data.user) !== staffAccessKey(currentUser)) {
                             var nextUser = data.user, token = authToken;
                             closeModal(); closeJobDetailModal();
@@ -1528,19 +1538,13 @@
                             activateStaffSession(token, nextUser); return;
                         }
                         if (failed || !data || data.status !== 'success' || data.section !== k) throw Error('讀取失敗，請重試');
-                        stage = 'apply'; code = 'APPLY_ERROR';
                         applyStaffSection(k, data.data);
                         s.ready = true; s.at = Date.now(); s.error = '';
-                        recordStaffPreload(k, r, 'complete', 'SUCCESS', data.elapsedMs);
-                    } catch (e) {
-                        recordStaffPreload(k, r, stage, code, data && data.elapsedMs);
-                        s.error = '讀取失敗，請重試（' + code + '）';
-                    }
+                        console.info('staffPreload', k, { elapsedMs: Date.now() - r.at, serverMs: data.elapsedMs });
+                    } catch (e) { s.error = '讀取失敗，請重試'; }
                     pumpStaffPreload();
                 }
-                try {
-                    google.script.run.withSuccessHandler(function(res) { finish(res, false); }).withFailureHandler(function() { finish(null, true); }).apiGetStaffPreload(authToken, k);
-                } catch (e) { finish(null, true); }
+                google.script.run.withSuccessHandler(function(res) { finish(res, false); }).withFailureHandler(function() { finish(null, true); }).apiGetStaffPreload(authToken, k);
             });
             showStaffPreload();
         }
@@ -1881,6 +1885,7 @@
         }
 
         function activateStaffSession(token, user) {
+            resetJobDrafts();
             if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
             persistentSessionRestoreAttempts = 0;
             resetStaffPreload();
@@ -2523,8 +2528,7 @@
         function openJobModal() { 
             populateJobBranchSelect('jBranch', (currentUser && currentUser.branches || [])[0] || '台中總部');
             document.getElementById('job-modal').classList.add('modal-active'); 
-            var mgrInput = document.getElementById('jManager');
-            if (mgrInput && !mgrInput.value && currentUser) mgrInput.value = currentUser.name;
+            refreshManagerOptions(); // 保留同一份草稿；新表單由 reset() 保持空白。
         }
         function closeJobModal() { if (jobSaveOperations.submit) { alert('請先核對儲存結果，避免重複新增職缺。'); return; } document.getElementById('job-modal').classList.remove('modal-active'); }
         function toggleCandName() {
@@ -2550,7 +2554,7 @@
             document.getElementById('jdResigned').innerText = job.resignedEmp || "--";
             var candInfo = job.hasCandidate === "有" ? (job.candidateName || "有 (未填寫姓名)") : "無";
             document.getElementById('jdCandidate').innerText = candInfo;
-            document.getElementById('jdManager').innerText = job.unitManager || "未記錄";
+            document.getElementById('jdManager').innerText = job.unitManager || "未指定主管";
             document.getElementById('jdNote').innerText = job.note || "無備註";
 
             document.getElementById('jedRowId').value = job.rowId;
@@ -2565,7 +2569,7 @@
             document.getElementById('jedHasCand').value = job.hasCandidate || "無";
             toggleEditCandName();
             document.getElementById('jedCandName').value = job.candidateName || "";
-            document.getElementById('jedManager').value = job.unitManager || "秀芸";
+            document.getElementById('jedManager').value = job.unitManager || "";
             document.getElementById('jedNote').value = job.note || "";
             
             var isUrg = (job.isUrgent === "TRUE" || job.isUrgent === "true" || job.isUrgent === true);
@@ -2638,13 +2642,23 @@
 
         // 等待過久只核對原次請求，不重新寫入。
         var jobSaveOperations = {};
+        function resetJobDrafts() {
+            Object.keys(jobSaveOperations).forEach(function(kind) {
+                var op = jobSaveOperations[kind]; op.finished = true; clearTimeout(op.timer);
+                op.controls.forEach(function(state) { state.el.disabled = state.disabled; });
+                op.btn.disabled = false; op.btn.innerHTML = op.original;
+            });
+            jobSaveOperations = {};
+            ['jobForm', 'jd-edit-mode'].forEach(function(id) { var form = document.getElementById(id); if (form) form.reset(); });
+            ['job-modal', 'job-detail-modal'].forEach(function(id) { var modal = document.getElementById(id); if (modal) modal.classList.remove('modal-active'); });
+        }
         function parseJobSaveResponse(res) {
             var result = typeof res === 'string' ? JSON.parse(res) : res;
             if (!result || typeof result.status !== 'string') throw new Error('回應資料格式錯誤');
             return result;
         }
         function checkJobSaveResult(op) {
-            if (op.checking || op.finished) return;
+            if (op.checking || op.finished || op.token !== authToken) return;
             op.checking = true;
             op.btn.disabled = true;
             op.btn.textContent = '核對儲存結果中…';
@@ -2676,7 +2690,7 @@
                 checkJobSaveResult(op);
             }
             op.finish = function(result) {
-                if (op.finished) return;
+                if (op.finished || op.token !== authToken) return;
                 op.finished = true; clearTimeout(op.timer);
                 delete jobSaveOperations[kind];
                 op.controls.forEach(function(state) { state.el.disabled = state.disabled; });
@@ -2700,6 +2714,7 @@
             e.preventDefault();
             var btn = document.getElementById("btnUpdateJob");
             if (jobSaveOperations.update) { checkJobSaveResult(jobSaveOperations.update); return; }
+            if (!validateJobManager('jedManager')) return;
             var jobData = {
                 rowId: document.getElementById('jedRowId').value,
                 branch: document.getElementById('jedBranch').value,
@@ -2717,13 +2732,14 @@
                 isUrgent: document.getElementById('jedUrgent').checked ? "TRUE" : ""
             };
 
-            runJobSave("update", btn, jobData, function() { alert("職缺更新成功！"); closeJobDetailModal(); fetchJobs(true); });
+            runJobSave("update", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(result.unitManager === jobData.unitManager ? "職缺更新成功！" : "職缺已儲存，但主管姓名尚未核對一致。請重新開啟確認，勿重複新增。"); closeJobDetailModal(); fetchJobs(true); });
         }
 
         function submitJob(e) {
             e.preventDefault();
             var btn = document.getElementById("btnSubmitJob");
             if (jobSaveOperations.submit) { checkJobSaveResult(jobSaveOperations.submit); return; }
+            if (!validateJobManager('jManager')) return;
             var jobData = {
                 branch: document.getElementById('jBranch').value,
                 community: document.getElementById('jCommunity').value,
@@ -2739,7 +2755,24 @@
                 unitManager: document.getElementById('jManager').value,
                 isUrgent: document.getElementById('jUrgent').checked ? "TRUE" : ""
             };
-            runJobSave("submit", btn, jobData, function() { alert("職缺新增成功！"); document.getElementById("jobForm").reset(); toggleCandName(); closeJobModal(); fetchJobs(true); });
+            runJobSave("submit", btn, jobData, function(result) { applySavedJobManager(result, jobData); alert(result.unitManager === jobData.unitManager ? "職缺新增成功！" : "職缺已儲存，但主管姓名尚未核對一致。請重新開啟確認，勿重複新增。"); document.getElementById("jobForm").reset(); toggleCandName(); closeJobModal(); fetchJobs(true); });
+        }
+
+        function validateJobManager(id) {
+            var input = document.getElementById(id);
+            input.value = input.value.trim();
+            if (input.value) return true;
+            alert('請選擇或輸入單位主管'); input.focus(); return false;
+        }
+
+        function applySavedJobManager(result, form) {
+            // 舊後端未提供已保存值時只重新讀取，不假裝已核對成功。
+            if (!result.rowId || typeof result.unitManager !== 'string') return;
+            var old = allJobs.find(function(job) { return String(job.rowId) === String(result.rowId); });
+            var saved = Object.assign({ status: '已開缺', systemClosed: '未結案' }, old || {}, form, { rowId: result.rowId, unitManager: result.unitManager });
+            delete saved.requestId;
+            if (old) allJobs[allJobs.indexOf(old)] = saved; else allJobs.unshift(saved);
+            refreshManagerOptions();
         }
 
         function fetchJobs(force) {
