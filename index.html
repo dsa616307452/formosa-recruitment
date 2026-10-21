@@ -1443,6 +1443,7 @@
         }
 
         function startStaffPreload() {
+            if (staffPreloadReady || Object.keys(staffPreloadSections).length) return;
             requiredStaffSections().forEach(function(k) { staffPreloadSections[k] = { ready: false, pending: true, at: 0 }; });
             document.getElementById('staffPreloadOverlay').hidden = false;
             document.getElementById('app-staff').inert = true;
@@ -1715,6 +1716,7 @@
         var STAFF_REMEMBERED_EMAIL_KEY = 'formosa_staff_remembered_email_v1';
         var STAFF_PERSISTENT_SESSION_KEY = 'formosa_staff_persistent_session_v1';
         var persistentSessionRestoreInProgress = false;
+        var persistentSessionRestoreGeneration = 0;
         var persistentSessionRestoreAttempts = 0;
         var persistentSessionRestoreTimer = null;
         var CANDIDATE_STEP_LABELS = ['基本與聯絡', '應徵條件與經歷', '背景與能力', '確認並送出'];
@@ -1870,6 +1872,7 @@
         function removeLocalValue(key) { try { localStorage.removeItem(key); } catch (e) {} }
 
         function clearSavedStaffLogin(clearEmail) {
+            cancelPersistentSessionRestore();
             if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
             persistentSessionRestoreAttempts = 0;
             removeLocalValue(STAFF_PERSISTENT_SESSION_KEY);
@@ -1885,6 +1888,8 @@
         }
 
         function activateStaffSession(token, user) {
+            cancelPersistentSessionRestore();
+            if (authToken === token && currentUser && staffAccessKey(currentUser) === staffAccessKey(user) && (staffPreloadReady || Object.keys(staffPreloadSections).length)) return;
             resetJobDrafts();
             if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
             persistentSessionRestoreAttempts = 0;
@@ -1909,8 +1914,15 @@
         function restorePersistentStaffSession() {
             var token = readLocalValue(STAFF_PERSISTENT_SESSION_KEY);
             if (!token || persistentSessionRestoreInProgress || authToken) return;
+            var generation = ++persistentSessionRestoreGeneration;
             persistentSessionRestoreInProgress = true;
+            function active() {
+                if (generation !== persistentSessionRestoreGeneration) return false;
+                if (authToken || readLocalValue(STAFF_PERSISTENT_SESSION_KEY) !== token) { persistentSessionRestoreInProgress = false; return false; }
+                return true;
+            }
             google.script.run.withSuccessHandler(function(res) {
+                if (!active()) return;
                 var result;
                 persistentSessionRestoreInProgress = false;
                 try { result = JSON.parse(res); } catch (e) { schedulePersistentSessionRestore(); return; }
@@ -1919,9 +1931,17 @@
                 if (result.status !== 'success' || !result.user) { schedulePersistentSessionRestore(); return; }
                 activateStaffSession(token, result.user);
             }).withFailureHandler(function() {
+                if (!active()) return;
                 persistentSessionRestoreInProgress = false;
                 schedulePersistentSessionRestore();
             }).apiRestoreSession(token);
+        }
+
+        function cancelPersistentSessionRestore() {
+            persistentSessionRestoreGeneration++;
+            persistentSessionRestoreInProgress = false;
+            if (persistentSessionRestoreTimer) { clearTimeout(persistentSessionRestoreTimer); persistentSessionRestoreTimer = null; }
+            persistentSessionRestoreAttempts = 0;
         }
 
         function schedulePersistentSessionRestore() {
@@ -2430,6 +2450,7 @@
         }
         
         function backToHome() {
+            cancelPersistentSessionRestore();
             resetStaffPreload();
             var tokenToInvalidate = authToken;
             document.getElementById('app-candidate').classList.add('hidden');
@@ -3176,6 +3197,7 @@
         }
 
         function verifyPassword() { 
+            cancelPersistentSessionRestore();
             var email = document.getElementById('loginEmail').value.trim();
             var input = document.getElementById('loginPass').value; 
             var rememberEmail = document.getElementById('loginRememberEmail').checked;
