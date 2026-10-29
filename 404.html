@@ -13,7 +13,10 @@
         basePath = firstSegment ? '/' + firstSegment : '';
       }
       var route = path.indexOf(basePath + '/') === 0 ? path.substring(basePath.length) : path;
-      var target = basePath + '/?route=' + encodeURIComponent(route || '/') + window.location.search + window.location.hash;
+      var params = new URLSearchParams(window.location.search);
+      params.delete('route');
+      var query = params.toString();
+      var target = basePath + '/?route=' + encodeURIComponent(route || '/') + (query ? '&' + query : '') + window.location.hash;
       window.location.replace(target);
     }());
   </script>
