@@ -49,7 +49,7 @@
         .form-label { font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: block; }
         .form-input:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
         .group-content { transition: max-height 0.4s ease-in-out, opacity 0.3s ease-in-out; max-height: 0; opacity: 0; overflow: hidden; }
-        .group-content.open { max-height: 20000px; opacity: 1; } 
+        .group-content.open { max-height: 20000px; opacity: 1; }
         .chevron { transition: transform 0.3s; }
         .group-btn.open .chevron { transform: rotate(180deg); }
         .cb-label { display: inline-flex; align-items: center; gap: 4px; background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; }
@@ -96,7 +96,25 @@
             .form-input { border: 1px solid #cbd5e1 !important; background: transparent !important; }
             .stat-card { border: 1px solid #ccc !important; box-shadow: none !important; }
         }
-    </style>    </style>
+
+/* Recruitment executive overview; preserves branch/date filters and detail charts. */
+.recruitment-overview { display:grid; gap:20px; color:#334155; }
+.recruitment-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.recruitment-overview h3 { font-size:15px; font-weight:700; }
+.recruitment-number { font-size:36px; font-weight:800; margin:12px 0; font-variant-numeric:tabular-nums; }
+.recruitment-number small { font-size:13px; font-weight:400; }
+.recruitment-kpis p:not(.recruitment-number) { font-size:12px; }
+.recruitment-rate { border-top:1px solid #e2e8f0; margin-top:14px; padding-top:12px; color:#64748b; }
+.recruitment-summary { padding:16px; border-radius:14px; background:#eef2ff; font-size:14px; }
+.recruitment-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:14px; font-variant-numeric:tabular-nums; }
+.recruitment-table th,.recruitment-table td { padding:14px 6px; text-align:right; border-bottom:1px solid #e2e8f0; overflow-wrap:anywhere; }
+.recruitment-table th:first-child { text-align:left; }
+.recruitment-table small { display:block; font-size:11px; font-weight:400; }
+.recruitment-week { display:grid; grid-template-columns:100px minmax(0,1fr) 45px; align-items:center; gap:12px; margin-top:16px; font-size:12px; }
+.recruitment-track { background:#f1f5f9; border-radius:5px; }
+.recruitment-track div { height:22px; background:#6366f1; border-radius:5px; }
+@media(max-width:600px) { .recruitment-kpis { grid-template-columns:1fr; } .recruitment-table { font-size:12px; } .recruitment-week { grid-template-columns:85px minmax(0,1fr) 35px; gap:8px; } }
+</style>
 
 
 </head>
@@ -524,7 +542,6 @@
                             <label class="text-[9px] font-bold text-slate-400 block mb-1 ml-1">面試狀態</label>
                             <select id="fResult" onchange="resetAndRenderDB()" class="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-black outline-none">
                                 <option value="全部">全部狀態</option>
-                                <option value="尚未面試">尚未面試</option>
                                 <option value="錄取">錄取</option>
                                 <option value="追蹤">追蹤</option>
                                 <option value="待考慮">待考慮</option>
@@ -603,25 +620,21 @@
                 </div>
 
                 <div id="stats-interview-container" class="space-y-6 fade-in">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="stat-card flex flex-col justify-between">
-                            <p class="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">總量 Total</p>
-                            <h4 id="statTotal" class="text-2xl font-black italic text-slate-900">0</h4>
+                    <section class="recruitment-overview" aria-label="月份統計與雙週比較">
+                        <p id="recruitmentOverviewPeriod" class="text-sm text-slate-500"></p>
+                        <div class="recruitment-kpis">
+                            <div class="stat-card"><h3>應徵人數</h3><p class="recruitment-number"><span id="statTotal">無資料</span><small> 人</small></p><p id="statTotalDelta"></p><p class="recruitment-rate">所選期間收到的應徵人數</p></div>
+                            <div class="stat-card"><h3>錄取人數</h3><p class="recruitment-number"><span id="statHiredCount">無資料</span><small> 人</small></p><p id="statHiredCountDelta"></p><p class="recruitment-rate">錄取率 <span id="statRate">無資料</span> · 占應徵人數</p></div>
+                            <div class="stat-card"><h3>跳票人數</h3><p class="recruitment-number"><span id="statNoShowCount">無資料</span><small> 人</small></p><p id="statNoShowCountDelta"></p><p class="recruitment-rate">跳票率 <span id="statNoShowRate">無資料</span> · 占應徵人數</p></div>
                         </div>
-                        <div class="stat-card flex flex-col justify-between border-indigo-50 bg-indigo-50/10">
-                            <p class="text-[9px] font-black text-indigo-300 uppercase mb-1 tracking-widest">錄取 Hired</p>
-                            <h4 id="statHiredCount" class="text-2xl font-black italic text-indigo-500">0</h4>
-                        </div>
-                        <div class="stat-card flex flex-col justify-between border-rose-50 bg-rose-50/10">
-                            <p class="text-[9px] font-black text-rose-300 uppercase mb-1 tracking-widest">跳票 No Show</p>
-                            <h4 id="statNoShowCount" class="text-2xl font-black italic text-rose-500">0</h4>
-                        </div>
-                        <div class="stat-card flex flex-col justify-between border-emerald-50 bg-emerald-50/10">
-                            <p class="text-[9px] font-black text-emerald-300 uppercase mb-1 tracking-widest">錄取率 Rate</p>
-                            <h4 id="statRate" class="text-2xl font-black italic text-emerald-500">0%</h4>
-                        </div>
-                    </div>
-
+                        <p id="recruitmentOverviewNote" class="recruitment-summary" role="status"></p>
+                        <section class="stat-card"><h3>最近 14 天，比前 14 天如何？</h3><p class="text-xs text-slate-500 mt-2">以所選期間的截止日計算；每期連續 14 天，可跨月。</p>
+                            <table class="recruitment-table"><thead><tr><th scope="col">指標</th><th scope="col">前期 14 天<small id="recruitmentFortnightPrevious"></small></th><th scope="col">本期 14 天<small id="recruitmentFortnightCurrent"></small></th><th scope="col">變化</th></tr></thead><tbody id="recruitmentFortnightBody"></tbody></table>
+                        </section>
+                        <section class="stat-card"><h3>每週錄取人數</h3><p class="text-xs text-slate-500 mt-2">單位：人 · 長條從 0 起算 · 週一至週日，僅計入所選期間</p><div id="recruitmentWeeklyBars" aria-label="各週錄取人數"></div></section>
+                        <details class="stat-card"><summary>查看每日資料與計算方式</summary><p id="recruitmentOverviewMethod" class="text-xs text-slate-500 my-3"></p><table class="recruitment-table"><thead><tr><th>日期</th><th>應徵</th><th>錄取</th><th>跳票</th></tr></thead><tbody id="recruitmentDailyBody"></tbody></table></details>
+                    </section>
+                    <details class="space-y-4"><summary class="text-sm text-slate-500">進階統計：平均、趨勢與比率</summary>
                     <div class="stat-card space-y-4">
                         <div class="flex flex-wrap justify-between items-center gap-3 border-b border-slate-50 pb-2">
                             <p id="interviewChartTitle" class="text-xs font-bold text-slate-500">招募人數與移動平均</p>
@@ -647,6 +660,8 @@
                         <p id="recruitmentRateInterpretation" role="status" aria-live="polite" class="text-xs text-slate-600 leading-relaxed"></p>
                         </div>
                     </div>
+
+                    </details>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="stat-card space-y-5">
@@ -1588,9 +1603,14 @@
             }
         }
 
+        function normalizeInterviewResult(value) {
+            var result = String(value || "");
+            return !result || result === "尚未面試" ? "待考慮" : result;
+        }
+
         function deriveStaffTalent() {
             var today = followUpTodayKey();
-            todayCandidates = db.filter(function(t) { return String(t._timestamp || t['時間戳記'] || '').indexOf(today) === 0 && (!t._result || t._result === '尚未面試'); });
+            todayCandidates = db.filter(function(t) { return String(t._timestamp || t['時間戳記'] || '').indexOf(today) === 0 && normalizeInterviewResult(t._result || t['面試結果']) === '待考慮'; });
             todayLoaded = true;
             deriveStaffFollowUps();
         }
@@ -3316,7 +3336,10 @@
             distinctMonths.sort().reverse(); distinctJobs.sort(); 
             
             var monthSelect = document.getElementById('statMonthFilter'); 
-            var currentFilter = monthSelect.value || 'all';
+            var thisMonth = recruitmentToday().slice(0, 7);
+            if (distinctMonths.indexOf(thisMonth) < 0) distinctMonths.unshift(thisMonth);
+            var currentFilter = monthSelect.dataset.overviewInitialized ? (monthSelect.value || thisMonth) : thisMonth;
+            monthSelect.dataset.overviewInitialized = 'true';
 
             if (currentStatTab === 'interview') {
                 monthSelect.innerHTML = '<option value="all">所有紀錄</option><option value="custom">自訂區間...</option>' + distinctMonths.map(function(m){ return '<option value="'+escapeHtml(m)+'">'+escapeHtml(m)+'</option>'; }).join(''); 
@@ -3434,7 +3457,67 @@
                     return '<div class="space-y-1.5 pb-2 border-b border-slate-50 last:border-0"><div class="flex justify-between items-end"><span class="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><i data-lucide="pie-chart" class="w-3 h-3 text-slate-300"></i> '+escapeHtml(source)+'</span><div class="text-right"><span class="text-[10px] font-bold text-slate-400 mr-1">'+stats.hired+'/'+stats.total+'位</span><span class="text-[10px] font-black '+rateColor+'">錄取 '+rate+'%</span></div></div><div class="h-1.5 bg-slate-50 rounded-full overflow-hidden flex"><div class="h-full bg-emerald-400 rounded-full" style="width: '+widthPercent+'%"></div></div></div>'; 
                 }).join(''); 
 
+            renderRecruitmentOverview(selectedMonth);
             drawInterviewChart(filteredData, selectedMonth);
+        }
+
+        function recruitmentToday(now) {
+            var parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now || new Date());
+            return ['year','month','day'].map(function(k){return parts.find(function(p){return p.type===k;}).value;}).join('-');
+        }
+        function recruitmentAddDay(date, n) { return new Date(new Date(date+'T00:00:00Z').getTime()+n*86400000).toISOString().slice(0,10); }
+        function recruitmentValidDate(date) { return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date+'T00:00:00Z')) && new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date; }
+        function buildRecruitmentOverview(rows, selection, start, end, now) {
+            var today=recruitmentToday(now), valid=rows.filter(function(row){return recruitmentValidDate(String(row['時間戳記']||'').slice(0,10));});
+            var grouped=Object.create(null);
+            valid.forEach(function(row){var date=String(row['時間戳記']).slice(0,10);var item=grouped[date]||(grouped[date]={total:0,hired:0,noShow:0});item.total++;var result=row._result||row['面試結果'];if(result==='錄取')item.hired++;if(result==='跳票')item.noShow++;});
+            var from, until, previousFrom, previousUntil;
+            if (/^\d{4}-(0[1-9]|1[0-2])$/.test(selection)) {
+                from=selection+'-01';
+                until=new Date(Date.UTC(+selection.slice(0,4),+selection.slice(5,7),0)).toISOString().slice(0,10);
+                var prev=new Date(Date.UTC(+selection.slice(0,4),+selection.slice(5,7)-2,1));
+                previousFrom=prev.toISOString().slice(0,10);
+                previousUntil=new Date(Date.UTC(prev.getUTCFullYear(),prev.getUTCMonth()+1,0)).toISOString().slice(0,10);
+            } else {
+                var dates=valid.map(function(row){return String(row['時間戳記']).slice(0,10);}).sort();
+                from=selection==='custom' && start ? start : dates[0] || today;
+                until=selection==='custom' && end ? end : today;
+            }
+            if(!recruitmentValidDate(from)||!recruitmentValidDate(until)||from>until||from>today) return null;
+            until=until>today?today:until;
+            function span(a,b){return Math.round((Date.parse(b)-Date.parse(a))/86400000)+1;}
+            function sum(a,b){return Object.keys(grouped).reduce(function(s,date){if(date>=a&&date<=b){var row=grouped[date];s.total+=row.total;s.hired+=row.hired;s.noShow+=row.noShow;}return s;},{total:0,hired:0,noShow:0});}
+            var compareEnd=until;
+            if(previousFrom){var count=Math.min(span(from,until),span(previousFrom,previousUntil));previousUntil=recruitmentAddDay(previousFrom,count-1);compareEnd=recruitmentAddDay(from,count-1);}
+            else {previousUntil=recruitmentAddDay(from,-1);previousFrom=recruitmentAddDay(from,-span(from,until));}
+            var fortnight={start:recruitmentAddDay(until,-13),end:until,previousStart:recruitmentAddDay(until,-27),previousEnd:recruitmentAddDay(until,-14)};
+            fortnight.current=sum(fortnight.start,fortnight.end);fortnight.previous=sum(fortnight.previousStart,fortnight.previousEnd);
+            var weeks=[];
+            for(var cursor=from;cursor<=until;){var dow=new Date(cursor+'T00:00:00Z').getUTCDay();var stop=recruitmentAddDay(cursor,6-(dow+6)%7);if(stop>until)stop=until;weeks.push({start:cursor,end:stop,hired:sum(cursor,stop).hired});cursor=recruitmentAddDay(stop,1);}
+            return {start:from,end:until,total:sum(from,until),currentComparable:sum(from,compareEnd),previous:sum(previousFrom,previousUntil),previousStart:previousFrom,previousEnd:previousUntil,compareEnd:compareEnd,fortnight:fortnight,weeks:weeks,days:valid.filter(function(row){var d=String(row['時間戳記']).slice(0,10);return d>=from&&d<=until;}).reduce(function(acc,row){var d=String(row['時間戳記']).slice(0,10);if(!acc[d])acc[d]=grouped[d];return acc;},{})};
+        }
+        function renderRecruitmentOverview(selectedMonth) {
+            var branch=getSelectedStatBranch();
+            var scoped=db.filter(function(row){return branch==='全部'||row._branch===branch;});
+            var data=buildRecruitmentOverview(scoped,selectedMonth,document.getElementById('statStartDate').value,document.getElementById('statEndDate').value);
+            var set=function(id,value){var el=document.getElementById(id);if(el)el.textContent=value;};
+            var available=fullDataLoaded && data;
+            var fields=[['total','應徵人數','statTotal'],['hired','錄取人數','statHiredCount'],['noShow','跳票人數','statNoShowCount']];
+            function change(a,b){return a===b?'持平':(a>b?'增加 ':'減少 ')+Math.abs(a-b)+' 人';}
+            function rate(n,d){return d?(100*n/d).toFixed(1)+'%':'無法計算';}
+            fields.forEach(function(f){set(f[2],available?data.total[f[0]]:'無資料');set(f[2]+'Delta',available?'較前期 '+change(data.currentComparable[f[0]],data.previous[f[0]]):'暫無資料可比較');});
+            set('statRate',available?rate(data.total.hired,data.total.total):'無資料');set('statNoShowRate',available?rate(data.total.noShow,data.total.total):'無資料');
+            set('recruitmentOverviewPeriod',available?data.start+' – '+data.end+'（依應徵日期）':'資料尚未載入，或所選日期範圍無效');
+            set('recruitmentOverviewNote',available?'錄取較前期'+change(data.currentComparable.hired,data.previous.hired)+'；跳票'+change(data.currentComparable.noShow,data.previous.noShow)+'。':'暫無資料可比較。');
+            set('recruitmentOverviewMethod',available?'摘要比較：'+data.start+'–'+data.compareEnd+' 對 '+data.previousStart+'–'+data.previousEnd+'（相同天數）。錄取率與跳票率的分母皆為所選期間應徵人數；結果採目前狀態。雙週比較各 14 天，可跨月；截至今日的數字仍可能變動。':'無資料與 0 人分開顯示；分母為 0 時不計算比率。');
+            var body=document.getElementById('recruitmentFortnightBody');
+            set('recruitmentFortnightCurrent',available?data.fortnight.start+'–'+data.fortnight.end:'無資料');set('recruitmentFortnightPrevious',available?data.fortnight.previousStart+'–'+data.fortnight.previousEnd:'無資料');
+            body.innerHTML=fields.map(function(f){var k=f[0],a=available?data.fortnight.current[k]:null,b=available?data.fortnight.previous[k]:null;return '<tr><th scope="row">'+f[1]+'</th><td>'+ (available?b:'無資料')+'</td><td>'+ (available?a:'無資料')+'</td><td'+(available&&k==='noShow'&&a>b?' style="color:#b91c1c"':'')+'>'+ (available?change(a,b):'無資料')+'</td></tr>';}).join('');
+            var weekly=document.getElementById('recruitmentWeeklyBars');
+            var max=available?Math.max.apply(null,[1].concat(data.weeks.map(function(w){return w.hired;}))):1;
+            weekly.innerHTML=available?data.weeks.map(function(w){return '<div class="recruitment-week"><span>'+w.start.slice(5)+'–'+w.end.slice(5)+'</span><div class="recruitment-track"><div style="width:'+ (w.hired/max*100)+'%"></div></div><strong>'+w.hired+' 人</strong></div>';}).join(''):'無資料';
+            var daily=document.getElementById('recruitmentDailyBody');
+            daily.innerHTML=available?Object.keys(data.days).sort().map(function(day){var d=data.days[day];return '<tr><th scope="row">'+day+'</th><td>'+d.total+'</td><td>'+d.hired+'</td><td>'+d.noShow+'</td></tr>';}).join('')||'<tr><td colspan="4">期間內 0 位應徵者</td></tr>':'<tr><td colspan="4">無資料</td></tr>';
         }
 
         var interviewTrendChartInstance = null;
@@ -3653,7 +3736,7 @@
                     t["年齡"] || "",
                     t["性別"] || "",
                     t["面試官"] || "",
-                    t._result || t["面試結果"] || "尚未面試",
+                    normalizeInterviewResult(t._result || t["面試結果"]),
                     t["潛力等級"] || "",
                     (t["備註"] || "").replace(/[\r\n]+/g, " "),
                     t["時間戳記"] || ""
@@ -3702,7 +3785,7 @@
             }
 
             document.getElementById('dbList').innerHTML = pagedData.map(function(t) { 
-                var res = t._result || t["面試結果"] || "尚未面試";
+                var res = normalizeInterviewResult(t._result || t["面試結果"]);
                 var pos = t._position || t["應徵職位"] || "未填寫職位";
                 var lvl = t["潛力等級"] || "A";
                 
@@ -4100,7 +4183,7 @@
             document.getElementById('mBirthday').value = bDay;
 
             document.getElementById('mInterviewer').value = t["面試官"] || (currentUser ? currentUser.name : "") || ""; 
-            document.getElementById('mResult').value = t._result || t["面試結果"] || ""; 
+            document.getElementById('mResult').value = normalizeInterviewResult(t._result || t["面試結果"]);
             var permittedLevels = ['A尚可', 'B沒人再用', 'HI'];
             var savedLevel = String(t["潛力等級"] || t._level || '').trim();
             document.getElementById('mLevel').value = permittedLevels.indexOf(savedLevel) !== -1 ? savedLevel : '';
@@ -4244,7 +4327,7 @@
             if (job !== '全部' && candidate._position !== job) return false;
             if (city !== '全部' && address.indexOf(city) === -1) return false;
             if (district !== '全部' && address.indexOf(district) === -1) return false;
-            if (result !== '全部' && candidate._result !== result) return false;
+            if (result !== '全部' && normalizeInterviewResult(candidate._result || candidate['面試結果']) !== result) return false;
             if (level !== '全部' && String(candidate['潛力等級'] || '').indexOf(level.substring(0, 1)) !== 0) return false;
             return true;
         }
@@ -4267,7 +4350,7 @@
 
             var today = new Date();
             var todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-            var isTodayPending = String(candidate._timestamp || candidate['時間戳記'] || '').indexOf(todayKey) === 0 && (!candidate._result || candidate._result === '尚未面試');
+            var isTodayPending = String(candidate._timestamp || candidate['時間戳記'] || '').indexOf(todayKey) === 0 && normalizeInterviewResult(candidate._result || candidate['面試結果']) === '待考慮';
             var todayIndex = todayCandidates.findIndex(function(item) { return String(item.rowId) === String(candidate.rowId); });
             if (todayIndex !== -1 && !isTodayPending) todayCandidates.splice(todayIndex, 1);
             else if (todayIndex !== -1) todayCandidates[todayIndex] = candidate;
