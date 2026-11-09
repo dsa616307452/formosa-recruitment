@@ -2633,7 +2633,7 @@
             if (!job) return;
 
             document.getElementById('jdTitle').innerText = (job.community || "") + " " + (job.position || "");
-            document.getElementById('jdLocation').innerText = job.location || "未填寫區域";
+            document.getElementById('jdLocation').innerText = normalizeJobLocation(job.location) || "未填寫區域";
             document.getElementById('jdStatus').innerText = job.status || "--";
             document.getElementById('jdStatus').className = "text-[10px] font-black px-3 py-1 rounded-full uppercase mb-2 inline-block " + (job.systemClosed === "結案" ? "bg-slate-100 text-slate-500" : "bg-emerald-50 text-emerald-600");
             document.getElementById('jdTime').innerText = job.workTime || "--";
@@ -2647,7 +2647,7 @@
 
             document.getElementById('jedRowId').value = job.rowId;
             document.getElementById('jedCommunity').value = job.community || "";
-            document.getElementById('jedLocation').value = job.location || "";
+            document.getElementById('jedLocation').value = normalizeJobLocation(job.location) || "";
             populateJobBranchSelect('jedBranch', job.branch || "台中總部");
             document.getElementById('jedPos').value = job.position || "日班保全";
             document.getElementById('jedTime').value = job.workTime || "";
@@ -2815,7 +2815,7 @@
                 rowId: document.getElementById('jedRowId').value,
                 branch: document.getElementById('jedBranch').value,
                 community: document.getElementById('jedCommunity').value,
-                location: document.getElementById('jedLocation').value,
+                location: normalizeJobLocation(document.getElementById('jedLocation').value),
                 position: document.getElementById('jedPos').value,
                 workTime: document.getElementById('jedTime').value,
                 resignedEmp: document.getElementById('jedResigned').value,
@@ -2839,7 +2839,7 @@
             var jobData = {
                 branch: document.getElementById('jBranch').value,
                 community: document.getElementById('jCommunity').value,
-                location: document.getElementById('jLocation').value,
+                location: normalizeJobLocation(document.getElementById('jLocation').value),
                 position: document.getElementById('jPos').value,
                 workTime: document.getElementById('jTime').value,
                 resignedEmp: document.getElementById('jResigned').value,
@@ -3039,7 +3039,7 @@
                 var name = String(job.community || '').trim();
                 if (!name) { unnamed++; return; }
                 // 以分部、區域及社區名稱辨識社區，避免跨分部同名社區被合併。
-                communities.add(JSON.stringify([String(job.branch || '').trim(), String(job.location || '').trim(), name]));
+                communities.add(JSON.stringify([String(job.branch || '').trim(), normalizeJobLocation(job.location), name]));
             });
             var el = document.getElementById('jobsStatistics');
             if (el) {
@@ -3104,7 +3104,7 @@
                 var noteSnippet = j.note ? '<div class="mt-2 text-[10px] text-slate-500 bg-white/50 border border-slate-200/50 p-2 rounded-lg truncate"><span class="font-bold mr-1">備註:</span>'+escapeHtml(j.note)+'</div>' : '';
                 var closeBtn = isClosed ? '' : '<button onclick=\'event.stopPropagation(); updateJobStatus(' + JSON.stringify(String(j.rowId)) + ')\' class="text-[9px] font-black border border-slate-200 text-slate-400 px-3 py-1 rounded-full hover:bg-white hover:border-slate-300 transition-colors z-10 relative">結案</button>';
                 var urgentBadge = isUrgent && !isClosed ? '<span class="ml-2 text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded-md italic uppercase tracking-widest animate-pulse">URGENT</span>' : '';
-                var locationBadge = '<div class="mt-1.5 flex flex-wrap gap-1.5"><span class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-sm tracking-wide"><i data-lucide="map-pin" class="w-3 h-3"></i>' + escapeHtml(j.location || "未填寫區域") + '</span><span class="inline-flex items-center bg-indigo-50 text-indigo-600 text-[10px] font-black px-2.5 py-1 rounded-lg">' + escapeHtml(j.branch || '台中總部') + '</span></div>';
+                var locationBadge = '<div class="mt-1.5 flex flex-wrap gap-1.5"><span class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-sm tracking-wide"><i data-lucide="map-pin" class="w-3 h-3"></i>' + escapeHtml(normalizeJobLocation(j.location) || "未填寫區域") + '</span><span class="inline-flex items-center bg-indigo-50 text-indigo-600 text-[10px] font-black px-2.5 py-1 rounded-lg">' + escapeHtml(j.branch || '台中總部') + '</span></div>';
                 var mgrBadge = selectedJobManager === '全部' ? '<span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">' + escapeHtml(j.unitManager || '未指定主管') + '</span>' : '';
 
                 html += "<div onclick='openJobDetail(" + JSON.stringify(j.rowId) + ")' class=\"" + cardBaseClass + cardColorClass + "\">";
@@ -3525,12 +3525,22 @@
             return String(value || '').trim().replace(/台/g, '臺');
         }
 
-        function resolveJobRegion(location, geometry) {
+        // Explicit district aliases only: never fuzzy-match arbitrary addresses or community names.
+        function regionalDistrictNames(city, district) {
+            var names = [normalizeRegionalName(district)];
+            if (city === '臺中市') {
+                if (district === '大里區') names.push('大理區');
+                if (district === '后里區') names.push('後里區');
+                if (district === '梧棲區') names.push('梧栖區');
+            }
+            return names;
+        }
+
+        function matchJobRegion(location, geometry) {
             var value = normalizeRegionalName(location), cities = Object.keys(geometry);
             var cityMatches = cities.filter(function(city) { return value.indexOf(city) === 0; });
             var city = cityMatches.length === 1 ? cityMatches[0] : null;
             var suffix = city ? value.slice(city.length).replace(/^[\s,，/／·-]+/, '') : value;
-            // Accept a shortened county/city name only when it identifies one county uniquely.
             if (!city) {
                 cityMatches = cities.filter(function(c) { return value.indexOf(c.replace(/[縣市]$/, '')) === 0; });
                 if (cityMatches.length === 1) {
@@ -3541,17 +3551,39 @@
             var matches = [];
             (city ? [city] : cities).forEach(function(c) {
                 geometry[c].forEach(function(town) {
-                    if (suffix.indexOf(town.name) === 0) matches.push({ city: c, district: town.name });
+                    var names = regionalDistrictNames(c, town.name);
+                    var full = names.find(function(name) { return suffix.indexOf(name) === 0; });
+                    // Short names are accepted only as a complete label, never as a road prefix.
+                    var short = names.some(function(name) {
+                        var stem = name.replace(/[區鄉鎮市]$/, '');
+                        return stem.length >= 2 && suffix === stem;
+                    });
+                    if (full || short) matches.push({ city: c, district: town.name, remainder: full ? suffix.slice(full.length) : '' });
                 });
             });
             if (matches.length === 1) {
                 var found = matches[0];
-                var remainder = suffix.slice(found.district.length);
-                // Multiple district names are ambiguous; never assign a multi-area job to the first.
-                if (geometry[found.city].some(function(t) { return t.name !== found.district && remainder.indexOf(t.name) >= 0; })) return { city: city, district: null };
-                return found;
+                // A second area, even in another city or written as an alias, must remain unassigned.
+                var multiple = /[/／、,，;；&＆+＋]|(?:以及|及|與)/.test(found.remainder) || cities.some(function(c) {
+                    return geometry[c].some(function(t) {
+                        return (c !== found.city || t.name !== found.district) && regionalDistrictNames(c, t.name).some(function(name) { return found.remainder.indexOf(name) >= 0; });
+                    });
+                });
+                if (!multiple) return found;
             }
-            return { city: city, district: null };
+            return { city: city, district: null, remainder: '' };
+        }
+
+        function resolveJobRegion(location, geometry) {
+            var match = matchJobRegion(location, geometry);
+            return { city: match.city, district: match.district };
+        }
+
+        function normalizeJobLocation(location) {
+            var original = String(location || '').trim();
+            var match = matchJobRegion(original, getRegionalGeometry());
+            // Canonical city + district also makes community deduplication consistent.
+            return match.district ? match.city + match.district + match.remainder : original;
         }
 
         // Shared with the job list: every open record counts, including incomplete locations.
@@ -3613,7 +3645,11 @@
             label.append(picker); head.append(label);
             if (!jobsLoaded) { root.append(node('p', 'regional-empty', '職缺資料尚未載入，請使用頁面上方的資料同步或重試功能。')); return; }
             var data = aggregateRegionalJobs(allJobs, geometry, state.city, state.branch, currentUser);
-            if (!data.groups.some(function(t) { return t.name === state.district; }) && state.district !== '__unknown' && state.district !== '__unknownCity' && state.district !== '__otherCity') state.district = data.groups[0] ? data.groups[0].name : '__unknown';
+            var visibleGroups = data.groups.filter(function(g) { return g.pending.length > 0; });
+            var extraGroups = [['__unknown', '區域待確認', data.unknown], ['__unknownCity', '縣市待確認', data.unknownCity], ['__otherCity', '其他縣市', data.otherCity]].filter(function(g) { return g[2].pending.length > 0; });
+            var options = visibleGroups.map(function(g) { return [g.name, g.name + ' · ' + g.pending.length + ' 筆']; }).concat(extraGroups.map(function(g) { return [g[0], g[1]]; }));
+            if (!options.some(function(o) { return o[0] === state.district; })) { state.district = options.length ? options[0][0] : null; state.showAllJobs = false; }
+            if (visibleGroups.length <= 5) state.expanded = false;
             function choose(name) { state.district = name; state.showAllJobs = false; renderRegionalRecruitment(); }
             var stats = node('div', 'regional-kpis');
             [['職缺總數', data.branchTotal.total, '全部未結案'], ['尚待補齊', data.branchTotal.pending.length, '含地點待確認'], ['其中急缺', data.branchTotal.urgent, '僅計待補職缺'], ['已有人選', data.branchTotal.filled, '仍未結案']].forEach(function(item) {
@@ -3624,52 +3660,64 @@
             root.append(node('p', 'regional-muted', state.branch + '：職缺總數 = 尚待補齊 + 已有人選。與職缺頁選擇同一分部、全部主管及全部職稱時一致。'));
             root.append(node('p', 'regional-muted', '待補分布：' + state.city + ' ' + data.pending.length + ' 筆（其中區域待確認 ' + data.unknown.pending.length + ' 筆）＋其他縣市 ' + data.otherCity.pending.length + ' 筆＋縣市待確認 ' + data.unknownCity.pending.length + ' 筆 = ' + data.branchTotal.pending.length + ' 筆。'));
             var split = node('div', 'regional-split'), mapPanel = node('section', 'regional-card'), ranking = node('section', 'regional-card');
-            mapPanel.append(node('h4', '', state.city + '工作區域'), node('p', 'regional-muted', '點選地圖，或使用行政區選單查看'));
+            mapPanel.append(node('h4', '', state.city + '工作區域'), node('p', 'regional-muted', '僅顯示有待補職缺的區域 · 點選地圖或選單查看'));
             var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
             svg.setAttribute('viewBox', '0 0 600 360'); svg.setAttribute('class', 'regional-map'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', state.city + '各行政區待補職缺，亦可用下方行政區選單操作');
-            var selectedTown = null;
+            var selectedTown = null, shapes = document.createElementNS(ns, 'g'); svg.append(shapes);
             geometry[state.city].forEach(function(town) {
-                var item = data.groups.find(function(g) { return g.name === town.name; }); var count = item ? item.pending.length : 0;
+                var item = data.groups.find(function(g) { return g.name === town.name; }); var count = item ? item.pending.length : 0; if (!count) return;
                 var level = count === 0 ? 0 : count <= 3 ? 1 : count <= 6 ? 2 : count <= 9 ? 3 : 4;
                 var shape = document.createElementNS(ns, 'path'); shape.setAttribute('d', town.path); shape.setAttribute('class', 'regional-map-area regional-level-' + level + (town.name === state.district ? ' is-selected' : ''));
                 shape.dataset.region = town.name;
                 var title = document.createElementNS(ns, 'title'); title.textContent = town.name + '：待補 ' + count + ' 筆'; shape.append(title);
-                shape.addEventListener('click', function() { choose(town.name); document.getElementById('regionalDistrict').focus(); }); svg.append(shape);
+                shape.addEventListener('click', function() { choose(town.name); document.getElementById('regionalDistrict').focus(); }); shapes.append(shape);
                 if (town.name === state.district) selectedTown = town;
             });
             if (selectedTown) { var mapText = document.createElementNS(ns, 'text'); mapText.setAttribute('x', selectedTown.center[0]); mapText.setAttribute('y', selectedTown.center[1]); mapText.setAttribute('text-anchor', 'middle'); mapText.textContent = selectedTown.name; svg.append(mapText); }
-            mapPanel.append(svg);
-            var legend = node('div', 'regional-legend'); ['0', '1–3', '4–6', '7–9', '10+'].forEach(function(text, i) { var entry = node('span'); entry.append(node('i', 'regional-level-' + i), node('span', '', text + ' 筆')); legend.append(entry); }); mapPanel.append(legend);
+            if (visibleGroups.length) mapPanel.append(svg); else mapPanel.append(node('p', 'regional-empty', '目前沒有可顯示的區域'));
+            var legend = node('div', 'regional-legend'); ['1–3', '4–6', '7–9', '10+'].forEach(function(text, i) { var entry = node('span'); entry.append(node('i', 'regional-level-' + (i + 1)), node('span', '', text + ' 筆')); legend.append(entry); }); if (visibleGroups.length) mapPanel.append(legend);
             var districtLabel = node('label', 'regional-district', '行政區'); districtLabel.htmlFor = 'regionalDistrict';
             var districtPicker = node('select'); districtPicker.id = 'regionalDistrict';
-            data.groups.map(function(g) { return [g.name, g.name + ' · ' + g.pending.length + ' 筆']; }).concat([['__unknown', '區域待確認'], ['__unknownCity', '縣市待確認'], ['__otherCity', '其他縣市']]).forEach(function(item) { var option = node('option', '', item[1]); option.value = item[0]; districtPicker.append(option); });
-            districtPicker.value = state.district; districtPicker.addEventListener('change', function() { choose(districtPicker.value); }); districtLabel.append(districtPicker); mapPanel.append(districtLabel);
+            options.forEach(function(item) { var option = node('option', '', item[1]); option.value = item[0]; districtPicker.append(option); });
+            districtPicker.value = state.district; districtPicker.addEventListener('change', function() { choose(districtPicker.value); }); districtLabel.append(districtPicker); if (options.length) mapPanel.append(districtLabel);
             ranking.append(node('h4', '', '待補最多的區域'), node('p', 'regional-muted', '單位：筆職缺 · 點選後查看明細'));
             var max = Math.max.apply(null, [1].concat(data.groups.map(function(g) { return g.pending.length; })));
-            (state.expanded ? data.groups : data.groups.slice(0, 5)).forEach(function(group, i) {
+            (state.expanded ? visibleGroups : visibleGroups.slice(0, 5)).forEach(function(group, i) {
                 var row = button('', function() { choose(group.name); }, 'regional-rank-row'); row.id = 'regionalRank' + group.id; row.setAttribute('aria-pressed', String(group.name === state.district));
                 var middle = node('span'); middle.append(node('span', '', group.name)); var track = node('span', 'regional-track'), fill = node('span', 'regional-fill'); fill.style.width = group.pending.length / max * 100 + '%'; track.append(fill); middle.append(track);
                 var value = node('span', 'regional-rank-value', group.pending.length + ' 筆'); value.append(node('small', '', group.urgent ? '急缺 ' + group.urgent : '無急缺'));
                 row.append(node('span', 'regional-muted', i + 1), middle, value); ranking.append(row);
             });
-            var more = button(state.expanded ? '收合排行' : '查看全部 ' + data.groups.length + ' 個行政區', function() { state.expanded = !state.expanded; renderRegionalRecruitment(); }); more.id = 'regionalExpand'; more.setAttribute('aria-expanded', String(state.expanded)); ranking.append(more);
+            var more = button(state.expanded ? '收合排行' : '查看全部 ' + visibleGroups.length + ' 個行政區', function() { state.expanded = !state.expanded; renderRegionalRecruitment(); }); more.id = 'regionalExpand'; more.setAttribute('aria-expanded', String(state.expanded)); if (visibleGroups.length > 5) ranking.append(more);
+            if (!visibleGroups.length) ranking.append(node('p', 'regional-empty', '目前沒有可顯示的區域'));
             split.append(mapPanel, ranking); root.append(split);
+            // Measure only visible paths after attachment; hidden panels are retried when shown.
+            if (visibleGroups.length) {
+                var bounds = shapes.getBBox();
+                if (bounds.width > 0 && bounds.height > 0) {
+                    var pad = Math.max(bounds.width, bounds.height) * 0.08;
+                    svg.setAttribute('viewBox', [bounds.x - pad, bounds.y - pad, bounds.width + pad * 2, bounds.height + pad * 2].join(' '));
+                    if (selectedTown) mapText.style.fontSize = (Math.max(bounds.width / 600, bounds.height / 360) * 24) + 'px';
+                }
+            }
             var unknown = node('div', 'regional-unknown'); unknown.append(node('span', '', state.city + '區域待確認：' + data.unknown.pending.length + ' 筆（已含在分部待補總數）'));
-            var unknownButton = button('查看待確認職缺', function() { choose('__unknown'); }); unknownButton.id = 'regionalUnknown'; unknown.append(unknownButton); root.append(unknown);
-            var globalUnknown = button('另有 ' + data.unknownCity.pending.length + ' 筆縣市待確認（已含在分部待補總數）', function() { choose('__unknownCity'); }); globalUnknown.id = 'regionalUnknownCity'; root.append(globalUnknown);
-            var otherCity = button('其他縣市待補：' + data.otherCity.pending.length + ' 筆（已含在分部待補總數）', function() { choose('__otherCity'); }); otherCity.id = 'regionalOtherCity'; root.append(otherCity);
+            var unknownButton = button('查看待確認職缺', function() { choose('__unknown'); }); unknownButton.id = 'regionalUnknown'; unknown.append(unknownButton); if (data.unknown.pending.length) root.append(unknown);
+            var globalUnknown = button('另有 ' + data.unknownCity.pending.length + ' 筆縣市待確認（已含在分部待補總數）', function() { choose('__unknownCity'); }); globalUnknown.id = 'regionalUnknownCity'; if (data.unknownCity.pending.length) root.append(globalUnknown);
+            var otherCity = button('其他縣市待補：' + data.otherCity.pending.length + ' 筆（已含在分部待補總數）', function() { choose('__otherCity'); }); otherCity.id = 'regionalOtherCity'; if (data.otherCity.pending.length) root.append(otherCity);
             var selected = state.district === '__unknown' ? data.unknown : state.district === '__unknownCity' ? data.unknownCity : state.district === '__otherCity' ? data.otherCity : data.groups.find(function(g) { return g.name === state.district; });
+            if (selected) {
             var selectedName = state.district === '__unknown' ? state.city + '・區域待確認' : state.district === '__unknownCity' ? '縣市待確認' : state.district === '__otherCity' ? '其他縣市' : state.city + '・' + state.district;
             var detail = node('section', 'regional-card regional-detail'); detail.setAttribute('aria-live', 'polite');
             detail.append(node('h4', '', selectedName), node('p', 'regional-muted', '待補 ' + selected.pending.length + ' 筆 · 急缺 ' + selected.urgent + ' 筆 · 已有人選 ' + selected.filled + ' 筆'));
             if (!selected.pending.length) detail.append(node('p', 'regional-empty', '目前沒有待補職缺'));
             (state.showAllJobs ? selected.pending : selected.pending.slice(0, 3)).forEach(function(job) {
                 var row = node('div', 'regional-job'), text = node('div');
-                text.append(node('strong', '', (job.community || '未填社區') + ' · ' + (job.position || '未填職稱')), node('p', 'regional-muted', '工作區域：' + (job.location || '未填寫') + ' · ' + (job.branch || '未填分部')));
+                text.append(node('strong', '', (job.community || '未填社區') + ' · ' + (job.position || '未填職稱')), node('p', 'regional-muted', '工作區域：' + (normalizeJobLocation(job.location) || '未填寫') + ' · ' + (job.branch || '未填分部')));
                 row.append(text, node('span', String(job.isUrgent).toLowerCase() === 'true' ? 'regional-urgent' : 'regional-muted', String(job.isUrgent).toLowerCase() === 'true' ? '急缺' : '待招募')); detail.append(row);
             });
             if (selected.pending.length > 3) { var moreJobs = button(state.showAllJobs ? '收合職缺' : '查看全部 ' + selected.pending.length + ' 筆待補職缺', function() { state.showAllJobs = !state.showAllJobs; renderRegionalRecruitment(); }); moreJobs.id = 'regionalMoreJobs'; moreJobs.setAttribute('aria-expanded', String(state.showAllJobs)); detail.append(moreJobs); }
             root.append(detail);
+            }
             var updated = regionalJobsUpdatedAt ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', dateStyle: 'short', timeStyle: 'short' }).format(new Date(regionalJobsUpdatedAt)) : '待同步確認';
             root.append(node('p', 'regional-muted', '職缺資料更新：' + updated + ' · 已結案職缺不列入'));
             var definitions = node('details'); definitions.append(node('summary', '', '資料定義與地圖來源'), node('p', 'regional-muted', '上方數字包含所選分部全部未結案職缺，不因地點缺漏而減少；未套用職缺頁主管或職稱篩選。每筆職缺計一次，不代表缺額人數。未結案且尚未有人選列為待補；急缺僅計待補項目。依工作區域辨識縣市與行政區；無法唯一辨識時列入待確認。圖資已簡化，僅用於統計呈現。'));
