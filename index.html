@@ -4026,6 +4026,14 @@
             }).withFailureHandler(function(err) { alert('系統連線錯誤：' + err); }).apiGetTalentExport(authToken, getTalentFilters(1));
         }
 
+        function formatCandidateSubmissionTime(candidate) {
+            var value = String(candidate['時間戳記'] || candidate._timestamp || '').trim();
+            var match = /^(\d{4})[-/](\d{2})[-/](\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2})?)?$/.exec(value);
+            if (!match) return '填寫時間未提供';
+            var date = match[1] + '/' + match[2] + '/' + match[3];
+            return '填寫：' + date + (match[4] ? ' ' + match[4] + ':' + match[5] : '');
+        }
+
         function renderDB() { 
             if (!fullDataLoaded || talentSearchTimer) return;
             var filters = getTalentFilters(currentPage);
@@ -4063,10 +4071,11 @@
                 var blacklistBadge = isBlacklisted ? '<span class="inline-flex items-center gap-1 bg-red-600 text-white text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide animate-pulse">⚠ 疑似黑名單</span>' : '';
                 
                 return "<div onclick='openModal(" + JSON.stringify(t.rowId) + ")' class=\"bg-white border " + cardBorderClass + " rounded-2xl p-5 flex items-center justify-between active:bg-slate-50 shadow-sm cursor-pointer group transition-all\">" +
-                       '<div class="flex-1">' +
+                       '<div class="flex-1 min-w-0 mr-3">' +
                            '<div class="flex items-center gap-2 mb-2 flex-wrap">' +
-                               '<h4 class="text-lg font-black italic text-slate-900">'+escapeHtml(t["姓名"] || "未填寫")+'</h4>' +
+                               '<h4 class="text-lg font-black italic text-slate-900 break-words max-w-full">'+escapeHtml(t["姓名"] || "未填寫")+'</h4>' +
                                '<span class="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase">'+escapeHtml(lvl)+'</span>' +
+                               '<span class="text-xs font-medium text-slate-500">'+escapeHtml(formatCandidateSubmissionTime(t))+'</span>' +
                                blacklistBadge +
                            '</div>' +
                            '<div class="flex">' +
@@ -4076,7 +4085,7 @@
                                '</span>' +
                            '</div>' +
                        '</div>' +
-                       '<div class="flex flex-col items-end gap-3">' +
+                       '<div class="flex flex-col items-end gap-3 shrink-0">' +
                             '<span class="text-[9px] font-black px-3 py-1.5 rounded-xl '+badgeClass+'">'+escapeHtml(res)+'</span>' +
                             '<i data-lucide="chevron-right" class="w-4 h-4 text-slate-200 group-hover:text-slate-400 transition-colors"></i>' +
                        '</div>' +
